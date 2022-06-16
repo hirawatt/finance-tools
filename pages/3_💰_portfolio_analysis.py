@@ -2,47 +2,9 @@ import streamlit as st
 from streamlit import caching
 
 import pandas as pd
-import openpyxl
 from pathlib import Path
 
 import seaborn as sns
-
-@st.experimental_memo
-def parse_data(raw_data) -> pd.DataFrame:
-    """
-    Take Raw Zerodha Dataframe and return usable dataframe.
-    - Remove all rows with NaN
-    Args:
-        df (pd.DataFrame): Raw zerodha holdings data
-    Returns:
-        pd.DataFrame: cleaned dataframe with features
-    """
-
-    uploaded_file = raw_data
-    wb = openpyxl.load_workbook(uploaded_file)
-    sheetname = st.sidebar.selectbox('Select Sheets', wb.sheetnames)
-    ws = wb['{}'.format(sheetname)]
-    ls = []
-
-    # Iterate through each row in the sheet
-    cell_obj = ws['B23': 'M{}'.format(ws.max_row)]
-    for rows in cell_obj:
-        for row in rows:
-            ls.append(row.value)
-
-    chunked_list = list()
-    chunk_size = 12
-    for i in range(0, len(ls), chunk_size):
-        chunked_list.append(ls[i:i+chunk_size])
-    df = pd.DataFrame(chunked_list)
-        
-    try:
-        df.columns = df.iloc[0]
-    except:
-        mutual_fund_holdings = 1
-        st.warning('No Mutual Fund Holdings')
-
-    return df
 
 @st.experimental_memo
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:

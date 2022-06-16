@@ -8,15 +8,13 @@ The Portfolio Analyzer is a data-driven, financial application that helps invest
 
 ## Idea Generation
 
-
 ## Due Diligence
-
 
 ### Roadmap
 
 #### Co-Pilot
 
-- [ ] Try -> https://github.com/ranaroussi/quantstats library
+- [ ] Try -> [quantstats](https://github.com/ranaroussi/quantstats) library
 - [ ] Sector Weightage
 - [ ] Stock Weightage
 - [ ] Earnings Calander

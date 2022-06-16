@@ -14,7 +14,6 @@ pct = st.number_input('Percentage', value=0.0, step=0.01, key='pct')
 
 st.title("Percentage Up/Down")
 
-
 # Set Session state with Input Number
 if 'key' not in st.session_state:
     number = st.number_input("Enter a number:", value=100)
@@ -24,9 +23,15 @@ if 'key' not in st.session_state:
 if 'number' not in st.session_state:
     st.session_state.number = st.session_state.key
 
-def main():
-    st.write("Starting number:", st.session_state.number)
-    number = st.session_state.key
+def pct_change(number: float) -> float:
+    """Calculate the percentage change of a number
+
+    Args:
+        number (float): The number to calculate the percentage change of
+
+    Returns:
+        float: The percentage change of the number
+    """
     if p5:
         number = number*1.05
     elif p3:
@@ -41,8 +46,13 @@ def main():
         number = number*0.98
     else:
         number = number*(1+pct/100)
-    st.session_state.key = number
-    st.write("The percentage of the number is:", number)
+    return number
+
+def main() -> None:
+    st.write("Starting number:", st.session_state.number)
+    number = st.session_state.key
+    st.session_state.key = pct_change(number)
+    st.write("The percentage of the number is:", st.session_state.key)
 
 if __name__ == "__main__":
     main()

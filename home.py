@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from pathlib import Path
 
 def main() -> None:
     st.write("# Welcome to The Trading Dashboard")
@@ -15,8 +16,17 @@ def main() -> None:
     info = pd.read_csv('./data/info.csv')
     #st.dataframe(info)
 
-    df = pd.read_excel('./data/holdings-sample.xlsx', header=22, usecols="B:L")
-    st.write(df)
+    st.write(Path("./data/DATA.md").read_text())
+    st.markdown(
+    """
+    ## Glossary
+    |Meaning|Emoji|
+    |:-:|:-:|
+    |Build in Progress|🔮|
+    |Complete|🧰|
+
+    """
+    )
 
 if __name__ == "__main__":
     st.set_page_config(

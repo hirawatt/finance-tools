@@ -78,7 +78,7 @@ def main() -> None:
         
 
     # Data Preview
-    with st.expander("Data Preview"):
+    with h1.expander("Data Preview"):
         st.write("Raw Dataframe", portfolio)
         st.write("Cleaned Data", df)
         st.write("Sector Breakdown", sectors)
@@ -109,7 +109,7 @@ def main() -> None:
 if __name__ == "__main__":
     st.set_page_config(
         "Zerodha Portfolio Analysis",
-        ":moneybag:",
+        "🕴️",
         initial_sidebar_state="expanded",
         layout="wide",
     )

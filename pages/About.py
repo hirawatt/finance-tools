@@ -12,5 +12,14 @@ def footer():
         height=100
         )
 
+def main():
+    footer()
 
-footer()
+if __name__ == "__main__":
+    st.set_page_config(
+        "About",
+        "🕴️",
+        initial_sidebar_state="expanded",
+        layout="wide",
+    )
+    main()

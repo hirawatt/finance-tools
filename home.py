@@ -34,5 +34,10 @@ if __name__ == "__main__":
         "🕴️",
         initial_sidebar_state="expanded",
         layout="wide",
+        menu_items={
+            "Get Help": "https://github.com/hirawatt/finance-tools",
+            "Report a bug": "https://github.com/hirawatt/finance-tools/issues",
+            "About": "# This is an *extremely* cool app!",
+            },
     )
     main()

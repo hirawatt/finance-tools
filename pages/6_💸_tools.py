@@ -68,12 +68,12 @@ def main() -> None:
         "Enter News Headline",
         value="Housing demand momentum to continue despite rising prices and interest rates: CRISIL",
     )
-    #output = news_sentiment(input)
-    #a2.metric("Sentiment", value=output[0]["label"], delta=output[0]["score"])
+    output = news_sentiment(input)
+    a2.metric("Sentiment", value=output[0]["label"], delta=output[0]["score"])
 
 import transformers as tfmr
 
-@st.cache
+@st.experimental_singleton
 def news_sentiment(input: str) -> list:
     # Allocate a pipeline for sentiment-analysis
     classifier = tfmr.pipeline("sentiment-analysis")

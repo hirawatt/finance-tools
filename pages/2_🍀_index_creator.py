@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import os, csv
 
+import src.custom_indices as custom_indices
+
 index_path = os.getcwd() + "/indices/"
 
 @st.cache
@@ -9,15 +11,12 @@ def load_data() -> pd.DataFrame:
     instruments = pd.read_csv("instruments")
     return instruments
 
-def custom_indices() -> list:
-    """Get List of Custom Indices from folder"""
-    # Import Custom Indices
-    indices_list = os.listdir(index_path)
-    return indices_list
+@st.cache
+def ci() -> list:
+    return custom_indices.custom_indices()
 
-def index_symbols(instruments):
+def index_symbols(instruments: pd.DataFrame) -> list:
     """Generate Index Symbols from All Instruments"""
-    st.write(instruments)
     # Select Instrument Exchange
     exchange = st.selectbox(
         "Select Instrument Exchange", instruments.exchange.unique().tolist(), index=3
@@ -29,7 +28,10 @@ def index_symbols(instruments):
         & (instruments["lot_size"] == 1)
         & (instruments["tick_size"] == 0.05)
     ]
-    st.write(stocks[["name", "tradingsymbol"]].dropna())
+
+    with st.expander("Data Preview"):
+        st.write(instruments)
+        st.write(stocks[["name", "tradingsymbol"]].dropna())
 
     st.subheader("TradingView Price Weighted Index")
     # TV Index from Custom Symbols
@@ -37,11 +39,11 @@ def index_symbols(instruments):
     with st.form("symbol_selection_form"):
         st.multiselect("Multiselect", stocks["name"])
         st.form_submit_button("Submit")
+    
+    return stocks["tradingsymbol"].tolist()
 
-def custom_index_symbols() -> list:
-    """Generate Index list from Custom Indices Folder"""
-    indices_list = custom_indices()
-    cIndex = st.sidebar.radio("Select Custom Index", indices_list)
+def custom_index_symbols(cIndex: str) -> list:
+    """Return contents of Custom Index sent as Argument"""
     with open(index_path + cIndex) as f:
         reader = csv.reader(f)
         dfIndex = list(reader)
@@ -53,45 +55,39 @@ def tv_pw_index(symbols_list: list) -> str:
     symbol = "NSE:" + "+NSE:".join(symbols_list)
     return symbol
 
-# Watchlist Functions
-@st.cache
-def convert_df(df: pd.DataFrame) -> bytes:
-    """Convert DataFrame to CSV"""
-    return df.to_csv().encode('utf-8')
-
 def upload_download_file(watchlist):
+    """Streamlit Upload/Download File
+
+    Args:
+        watchlist (str): custom index/watchlist filename
+    """
     c1, c2 = st.columns(2)
     c1.file_uploader("Upload your watchlist file", type=['csv'], accept_multiple_files=False)
-    c2.download_button(
-        label="Download sample watchlist file",
-        data=watchlist,
-        file_name="./data/watchlist-sample.csv",
-        mime='text/csv',
-    )
+    with open("./indices/{}".format(watchlist), "rb") as f:
+        c2.download_button(
+            label="Download sample watchlist file",
+            data=f,
+            file_name="{}".format(watchlist),
+            mime='text/csv',
+        )
 
 def main():
-    st.subheader("Watchlist")
-    watchlist = pd.read_csv('./data/watchlist-sample.csv')
-    custom = st.multiselect("Watchlist Stocks", watchlist.columns.to_list(), watchlist.columns.tolist())
-    csv = convert_df(watchlist)
-    upload_download_file(csv)
+    st.subheader("Custom Index | Watchlists")
+    indices_list = ci()
+    index_file = st.radio("Select Index | Watchlist", indices_list, horizontal=True)
 
-    st.markdown("---")
     st.subheader("Index Creator | Watchlist")
     instruments = load_data()
-    # index_symbols(instruments)
-    constituents = custom_index_symbols()
-    st.multiselect("Stocks in Selected Index", constituents, constituents)
+    #index_symbols(instruments)
+    constituents = custom_index_symbols(index_file)
+    st.multiselect("Stocks in Selected Index | Watchlist", constituents, constituents)
+    upload_download_file(index_file)
+
     # TV Index from Custom Index/Symbol
+    st.markdown("---")
     st.info("Paste below symbol to TradingView")
     symbol = tv_pw_index(constituents)
     st.code(symbol, language="python")
-
-    st.markdown("---")
-    st.subheader("Sample Watchlists")
-    cols = st.columns(4)
-    for i, c in enumerate(cols):
-        c.write("Watchlist 1")
 
 if __name__ == "__main__":
     st.set_page_config(

@@ -2,5 +2,6 @@ pandas==1.3.5
 plotly==5.7.0
 seaborn==0.11.2
 st_annotated_text==3.0.0
+st_aggrid
 streamlit==1.10.0
 transformers==4.18.0

@@ -5,8 +5,8 @@ def main():
     c1, c2, c3, c4 = st.columns(4)
     c1.subheader("Options Pricing Mismatch")
     c2.subheader("Unusual Moves in Pairs")
-    c3.subheader("Unusual Volume in Stocks")
-    c4.subheader("Unusual Volume in Options")
+    c3.subheader(":whale: Unusual Volume in Stocks")
+    c4.subheader(":whale2: Unusual Volume in Options")
 
 
 if __name__ == "__main__":

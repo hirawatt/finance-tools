@@ -1,5 +1,6 @@
 import streamlit as st
 from streamlit import caching
+from st_aggrid import AgGrid
 
 import pandas as pd
 from pathlib import Path
@@ -85,6 +86,8 @@ def main() -> None:
         st.write("Sectors in Investment", df_with_sectors.dropna(subset=['Sector']))
     
     investment_display_info(df)
+    with st.expander("Holdings"):
+        AgGrid(df)
     st.markdown("""---""") 
 
     import functools

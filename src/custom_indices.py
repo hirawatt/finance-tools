@@ -7,4 +7,5 @@ def custom_indices() -> list:
     """Get List of Custom Indices from folder"""
     # Import Custom Indices
     indices_list = os.listdir(index_path)
-    return indices_list
+    li = [x.split('.')[0] for x in indices_list]
+    return li

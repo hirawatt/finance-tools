@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 
+from annotated_text import annotated_text
+
 def main() -> None:
     st.write("# Welcome to The Trading Dashboard")
 
@@ -26,6 +28,15 @@ def main() -> None:
     |Complete|🧰|
 
     """
+    )
+    
+    annotated_text(
+        "This ",
+        ("is", "verb"),
+        " some ",
+        ("annotated", "adj"),
+        ("text", "noun"),
+        " for those of "
     )
 
 if __name__ == "__main__":

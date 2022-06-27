@@ -63,31 +63,36 @@ def upload_download_file(watchlist):
     """
     c1, c2 = st.columns(2)
     c1.file_uploader("Upload your watchlist file", type=['csv'], accept_multiple_files=False)
-    with open("./indices/{}".format(watchlist), "rb") as f:
+    with open("./indices/{}.csv".format(watchlist), "rb") as f:
         c2.download_button(
             label="Download sample watchlist file",
             data=f,
-            file_name="{}".format(watchlist),
+            file_name="{}.csv".format(watchlist),
             mime='text/csv',
         )
 
 def main():
-    st.subheader("Custom Index | Watchlists")
+    st.subheader(":first_place_medal: Custom Index Creator | Watchlists")
     indices_list = ci()
     index_file = st.radio("Select Index | Watchlist", indices_list, horizontal=True)
 
-    st.subheader("Index Creator | Watchlist")
     instruments = load_data()
     #index_symbols(instruments)
-    constituents = custom_index_symbols(index_file)
+    constituents = custom_index_symbols(index_file + '.csv')
     st.multiselect("Stocks in Selected Index | Watchlist", constituents, constituents)
     upload_download_file(index_file)
 
-    # TV Index from Custom Index/Symbol
     st.markdown("---")
-    st.info("Paste below symbol to TradingView")
+    # Basket to buy NIFTY 50 as an ETF
+    
+
+
+    # TV Index from Custom Index/Symbol
+    st.sidebar.subheader(":second_place_medal: TradingView Price Weighted Index")
+    st.sidebar.info("Paste below symbol to TradingView")
     symbol = tv_pw_index(constituents)
-    st.code(symbol, language="python")
+    st.sidebar.code(symbol, language="python")
+    st.sidebar.markdown("---")
 
 if __name__ == "__main__":
     st.set_page_config(

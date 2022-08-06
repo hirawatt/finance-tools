@@ -3,5 +3,5 @@ plotly==5.7.0
 seaborn==0.11.2
 st_annotated_text==3.0.0
 st_aggrid==0.2.3
-streamlit==1.10.0
+streamlit==1.11.1
 transformers==4.18.0

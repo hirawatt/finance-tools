@@ -1,6 +1,5 @@
 import streamlit as st
 from streamlit import caching
-from st_aggrid import AgGrid
 
 import pandas as pd
 from pathlib import Path
@@ -87,7 +86,7 @@ def main() -> None:
     
     investment_display_info(df)
     with st.expander("Holdings"):
-        AgGrid(df)
+        st.write(df)
     st.markdown("""---""") 
 
     import functools

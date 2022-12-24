@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 
-from annotated_text import annotated_text
-
 def main() -> None:
     st.write("# Welcome to The Trading Dashboard")
 
@@ -22,23 +20,16 @@ def main() -> None:
     st.markdown(
     """
     ## Glossary
-    |Meaning|Emoji|
+    |Emoji|Meaning|
     |:-:|:-:|
-    |Build in Progress|🔮|
-    |Complete|🧰|
+    |✅|FIXED|
+    |🚀|ADDED|
+    |👍|IMPROVED|
+    |🧪|EXPERIMENT|
 
     """
     )
     
-    annotated_text(
-        "This ",
-        ("is", "verb"),
-        " some ",
-        ("annotated", "adj"),
-        ("text", "noun"),
-        " for those of "
-    )
-
 if __name__ == "__main__":
     st.set_page_config(
         "The Trading Dashboard by Hirawat",

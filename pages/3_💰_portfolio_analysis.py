@@ -1,10 +1,6 @@
 import streamlit as st
-from streamlit import caching
-
 import pandas as pd
 from pathlib import Path
-
-import seaborn as sns
 
 #@st.experimental_memo
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:

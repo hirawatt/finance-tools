@@ -6,7 +6,7 @@ maxUploadSize = 10
 runOnSave = true
 
 [runner]
-magicEnabled = true
+magicEnabled = false
 fastReruns = false
 
 [mapbox]

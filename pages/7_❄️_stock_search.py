@@ -7,7 +7,7 @@ raw_data = pd.read_csv('./data/all-companies-list.csv', dtype={'BSE Code': str})
 # Combination Sum
 from itertools import combinations
 
-@st.cache
+@st.cache_data
 def find_combos(arr, no_of_stocks):
     combos = list(combinations(arr, no_of_stocks))
     combo_sums = []

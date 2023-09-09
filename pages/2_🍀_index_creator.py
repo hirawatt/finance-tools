@@ -6,12 +6,12 @@ import src.custom_indices as custom_indices
 
 index_path = os.getcwd() + "/indices/"
 
-@st.cache
+@st.cache_data
 def load_data() -> pd.DataFrame:
     instruments = pd.read_csv("instruments")
     return instruments
 
-@st.cache
+@st.cache_data
 def ci() -> list:
     return custom_indices.custom_indices()
 

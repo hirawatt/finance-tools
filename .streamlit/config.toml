@@ -1,3 +1,11 @@
+[theme]
+base="light"
+primaryColor="#226216"
+backgroundColor="#f5fcff"
+secondaryBackgroundColor="#e5ecef"
+textColor="#000000"
+font="sans serif"
+
 [global]
 dataFrameSerialization = "legacy"
 
@@ -10,11 +18,3 @@ magicEnabled = false
 fastReruns = false
 
 [mapbox]
-
-[theme]
-base="light"
-primaryColor="#226216"
-backgroundColor="#f5fcff"
-secondaryBackgroundColor="#e5ecef"
-textColor="#000000"
-font="sans serif"

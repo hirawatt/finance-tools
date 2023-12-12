@@ -6,9 +6,6 @@ secondaryBackgroundColor="#e5ecef"
 textColor="#000000"
 font="sans serif"
 
-[global]
-dataFrameSerialization = "legacy"
-
 [server]
 maxUploadSize = 10
 runOnSave = true
@@ -16,5 +13,3 @@ runOnSave = true
 [runner]
 magicEnabled = false
 fastReruns = false
-
-[mapbox]

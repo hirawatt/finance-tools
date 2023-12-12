@@ -10,9 +10,11 @@ The Portfolio Analyzer is a data-driven, financial application that helps invest
 
 ## Due Diligence
 
-### Roadmap
+---
 
-#### Co-Pilot
+## Roadmap
+
+> Co-Pilot : Portfolio Analyzer
 
 - [ ] Try -> [quantstats](https://github.com/ranaroussi/quantstats) library
 - [ ] Sector Weightage
@@ -26,3 +28,17 @@ The Portfolio Analyzer is a data-driven, financial application that helps invest
 - [ ] Potential Red Flags 🚩
   - ASM/GSM List
   - High Default Probability
+
+---
+
+## GUIDE - How To Use
+
+> Portfolio Analyzer
+
+```mermaid
+graph TD;
+    A(Co-Pilot) --> B(Analyze) & C(Optimize)
+    B --> D(Sector Weightage) & E(Stock Weightage)
+    C --> F(Rebalance) & G(Reduce Risk) & H(Maximize Returns)
+    G & H --> I(Sharpe Ratio & Treynor Ratio Comparison)
+```

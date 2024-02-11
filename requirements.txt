@@ -3,6 +3,6 @@ pandas
 plotly==5.7.0
 seaborn==0.11.2
 streamlit
-transformers==4.30.0
+transformers==4.36.0
 openpyxl
 tensorflow

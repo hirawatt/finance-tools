@@ -1,5 +1,10 @@
 # Finance-Tools
 
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://finance-tools.streamlit.app/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/hirawatt?label=GitHub%20Sponsors&style=social)](https://github.com/sponsors/hirawatt)
+<a href="https://www.buymeacoffee.com/hirawat" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="100" height="25" ></a>
+
 ## New Tool - Zerodha [Leaderboards](https://zerodha.hirawat.in/) - using [Verified PnL](https://support.zerodha.com/category/console/reports/other-queries/articles/verified-p-l)
 
 ## Co-Pilot : Portfolio Analyzer

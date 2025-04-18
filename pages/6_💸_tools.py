@@ -76,7 +76,7 @@ def main() -> None:
 
 import transformers as tfmr
 
-@st.experimental_singleton
+@st.cache_resource
 def news_sentiment(input: str) -> list:
     # Allocate a pipeline for sentiment-analysis
     classifier = tfmr.pipeline("sentiment-analysis")

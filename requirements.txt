@@ -1,8 +1,7 @@
-numpy
-pandas
-plotly==5.7.0
-seaborn==0.11.2
-streamlit
+numpy==2.2.4
+pandas==2.2.3
+plotly==5.24.1
+streamlit==1.44.1
 transformers==4.48.0
 openpyxl
-tensorflow
+#tensorflow

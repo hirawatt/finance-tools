@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os, csv
 
-import src.custom_indices as custom_indices
+import utils.custom_indices as custom_indices
 
 index_path = os.getcwd() + "/indices/"
 

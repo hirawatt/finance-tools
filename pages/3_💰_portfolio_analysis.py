@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 
-#@st.experimental_memo
+@st.cache_data
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     """Drop Unrequired Rows and Columns"""
 
@@ -16,7 +16,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     #st.dataframe(df1)
     return df1
 
-# TD: Add Logic to this Function
+# TODO: Add Logic to this Function
 def live_prices(symbol_selections: list) -> None:
     """Display Live Prices"""
 

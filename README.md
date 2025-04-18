@@ -1,46 +1,65 @@
-# Finance-Tools
+# Finance-Tools 📊
+
+A collection of financial analysis tools to help investors make data-driven decisions.
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://finance-tools.streamlit.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/hirawatt?label=GitHub%20Sponsors&style=social)](https://github.com/sponsors/hirawatt)
-<a href="https://www.buymeacoffee.com/hirawat" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="100" height="25" ></a>
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
+[![Last Commit](https://img.shields.io/github/last-commit/hirawatt/finance-tools)](https://github.com/hirawatt/finance-tools)
 
-## New Tool - Zerodha [Leaderboards](https://zerodha.hirawat.in/) - using [Verified PnL](https://support.zerodha.com/category/console/reports/other-queries/articles/verified-p-l)
+## 🌟 Featured Tools
 
-## Co-Pilot : Portfolio Analyzer
+### 1. Zerodha Leaderboards
 
-The Portfolio Analyzer is a data-driven, financial application that helps investors make better decisions. The application will allow you to analyze all of your investments, stocks, bonds, mutual funds, and other financial instruments in one place. It is a great tool for managing your investments and tracking your portfolio performance. The Portfolio Analyzer is perfect for those who want to make informed decisions about their investments and who want to track their progress over time.
+Track top performers using [Verified PnL](https://support.zerodha.com/category/console/reports/other-queries/articles/verified-p-l)
+📈 **Live Demo**: [zerodha.hirawat.in](https://zerodha.hirawat.in/)
 
-> Above description generated using - [this](https://mydukaan.io/tools/product-description-generator)
+### 2. Co-Pilot: Portfolio Analyzer
 
-## Idea Generation
+An intelligent portfolio management system that provides comprehensive analysis and optimization suggestions for your investments.
 
-## Due Diligence
+#### Key Features
 
----
+- 📊 Portfolio Analysis
+- 🎯 Risk Assessment
+- 📈 Performance Tracking
+- 🔄 Rebalancing Suggestions
+- 📉 Risk Management
 
-## Roadmap
+## 🚀 Getting Started
 
-> Co-Pilot : Portfolio Analyzer
+```bash
+# Clone the repository
+git clone https://github.com/hirawatt/finance-tools.git
 
-- [ ] Try -> [quantstats](https://github.com/ranaroussi/quantstats) library
-- [ ] Sector Weightage
-- [ ] Stock Weightage
-- [ ] Earnings Calander
-- [ ] Correlation
-- [ ] Rebalancing for stocks above 30% weightage
-- [ ] Portfolio Beta Calculation
-- [ ] PE Ratio
-- [ ] Price Forecast
-- [ ] Potential Red Flags 🚩
-  - ASM/GSM List
-  - High Default Probability
+# Install dependencies
+pip install -r requirements.txt
 
----
+# Run the Streamlit app
+streamlit run app.py
+```
 
-## GUIDE - How To Use
+## 🗺️ Roadmap
 
-> Portfolio Analyzer
+### Portfolio Analyzer
+
+- [ ] Integration with [quantstats](https://github.com/ranaroussi/quantstats)
+- [ ] Advanced Portfolio Analytics
+  - [ ] Sector & Stock Weightage
+  - [ ] Portfolio Beta Calculation
+  - [ ] PE Ratio Analysis
+  - [ ] Correlation Matrix
+- [ ] Risk Management
+  - [ ] ASM/GSM List Monitoring
+  - [ ] Default Probability Assessment
+  - [ ] Automated Rebalancing Suggestions
+- [ ] Market Intelligence
+  - [ ] Earnings Calendar
+  - [ ] Price Forecasting
+  - [ ] Red Flag Detection 🚩
+
+## 📊 Portfolio Analysis Flow
 
 ```mermaid
 graph TD;
@@ -49,3 +68,18 @@ graph TD;
     C --> F(Rebalance) & G(Reduce Risk) & H(Maximize Returns)
     G & H --> I(Sharpe Ratio & Treynor Ratio Comparison)
 ```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 💝 Support the Project
+
+If you find this project useful, consider supporting its development:
+
+- [GitHub Sponsors](https://github.com/sponsors/hirawatt)
+- <a href="https://www.buymeacoffee.com/hirawat" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="100" height="25" ></a>
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -6,9 +6,8 @@ from typing import List, Optional
 import csv
 
 import utils.custom_indices as custom_indices
+import utils.index_utils as index_utils
 
-# Constants
-INDEX_PATH = Path(os.getcwd()) / "indices"
 DEFAULT_EXCHANGE = "NSE"
 
 @st.cache_data
@@ -31,19 +30,10 @@ def filter_tradable_stocks(instruments: pd.DataFrame, exchange: str) -> pd.DataF
         (instruments["tick_size"] == 0.05)
     ]
 
-def load_index_symbols(index_file: str) -> Optional[List[str]]:
-    """Load symbols from index file with error handling"""
-    try:
-        with open(INDEX_PATH / f"{index_file}.csv") as f:
-            reader = csv.reader(f)
-            return next(reader)  # Get first row
-    except (FileNotFoundError, StopIteration) as e:
-        st.error(f"Error loading index file: {e}")
-        return None
-
 def create_tv_index_string(symbols: List[str]) -> str:
     """Create TradingView index string"""
     return f"NSE:{'+NSE:'.join(symbols)}"
+
 
 def handle_file_operations(watchlist: str):
     """Handle file upload and download operations"""
@@ -67,7 +57,7 @@ def handle_file_operations(watchlist: str):
     
     # File Download
     try:
-        with open(INDEX_PATH / f"{watchlist}.csv", "rb") as f:
+        with open(index_utils.INDEX_PATH / f"{watchlist}.csv", "rb") as f:
             col2.download_button(
                 label="📥 Download current watchlist",
                 data=f,
@@ -97,7 +87,7 @@ def main():
     )
 
     # Load and Display Index Constituents
-    if constituents := load_index_symbols(index_file):
+    if (constituents := index_utils.load_index_symbols(index_file, instruments_df)) is not None:
         selected_stocks = st.multiselect(
             "Manage Stocks in Selected Index/Watchlist",
             constituents,

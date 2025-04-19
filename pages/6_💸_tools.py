@@ -64,24 +64,24 @@ def main() -> None:
         net_change = (st.session_state.number - st.session_state.key)/st.session_state.number * 100
         c2.metric("The net change is:", round(st.session_state.key, 2), delta=round(net_change, 2))
 
-    with tab2:
-        st.subheader("News Sentiment Analysis")
-        a1, a2 = st.columns(2)
-        input = a1.text_input(
-            "Enter News Headline",
-            value="Housing demand momentum to continue despite rising prices and interest rates: CRISIL",
-        )
-        output = news_sentiment(input)
-        a2.metric("Sentiment", value=output[0]["label"], delta=output[0]["score"])
+#     with tab2:
+#         st.subheader("News Sentiment Analysis")
+#         a1, a2 = st.columns(2)
+#         input = a1.text_input(
+#             "Enter News Headline",
+#             value="Housing demand momentum to continue despite rising prices and interest rates: CRISIL",
+#         )
+#         output = news_sentiment(input)
+#         a2.metric("Sentiment", value=output[0]["label"], delta=output[0]["score"])
 
-import transformers as tfmr
+# import transformers as tfmr
 
-@st.cache_resource
-def news_sentiment(input: str) -> list:
-    # Allocate a pipeline for sentiment-analysis
-    classifier = tfmr.pipeline("sentiment-analysis")
-    output = classifier(input)
-    return output
+# @st.cache_resource
+# def news_sentiment(input: str) -> list:
+#     # Allocate a pipeline for sentiment-analysis
+#     classifier = tfmr.pipeline("sentiment-analysis")
+#     output = classifier(input)
+#     return output
     
 
 if __name__ == "__main__":

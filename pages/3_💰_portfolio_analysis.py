@@ -1,114 +1,132 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from pathlib import Path
+from typing import Dict, Optional, Tuple
+from plotly.graph_objs._figure import Figure
 
-@st.cache_data
-def clean_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Drop Unrequired Rows and Columns"""
+# Constants
+QUANTITY_COLUMNS = ['Quantity Available', 'Quantity Discrepant', 'Quantity Long Term', 
+                   'Quantity Pledged (Margin)', 'Quantity Pledged (Loan)']
+REQUIRED_COLUMNS = ['Symbol', 'Average Price', 'Previous Closing Price'] + QUANTITY_COLUMNS
 
-    df1 = df.drop(columns=['ISIN', 'Quantity Available', 'Sector', 'Quantity Discrepant', 'Quantity Long Term', 'Quantity Pledged (Margin)', 'Quantity Pledged (Loan)'])
-    df1 = df1.drop([0])
+@st.cache_data(ttl=3600)
+def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Load and cache both portfolio and sector data"""
+    portfolio = pd.read_excel('./data/holdings-sample.xlsx', header=22, usecols="B:L")
+    sectors = pd.read_csv('./data/stock-sector.csv').rename(columns={"NSE code": "Symbol"})
+    return portfolio, sectors
 
-    df1['Total Quantity'] = df['Quantity Available'] + df['Quantity Discrepant'] + df['Quantity Long Term'] + df['Quantity Pledged (Margin)'] + df['Quantity Pledged (Loan)']
-    df1['Invested Value'] = df1['Total Quantity'] * df1['Average Price']
-    df1['Current Value']  = df1['Total Quantity'] * df1['Previous Closing Price']
+def process_portfolio(df: pd.DataFrame) -> pd.DataFrame:
+    """Process portfolio data efficiently"""
+    df = df.copy()
+    df['Total Quantity'] = df.loc[:, QUANTITY_COLUMNS].sum(axis='columns')
+    df['Invested Value'] = df['Total Quantity'] * df['Average Price']
+    df['Current Value'] = df['Total Quantity'] * df['Previous Closing Price']
+    return df[['Symbol', 'Total Quantity', 'Invested Value', 'Current Value']]
+
+def create_charts(df: pd.DataFrame, df_with_sectors: pd.DataFrame) -> Tuple[Figure, Figure]:
+    """Create portfolio charts"""
+    symbol_fig = px.pie(df, values="Invested Value", names="Symbol", template="plotly_white")
+    sector_fig = px.pie(df_with_sectors, values="Invested Value", names="Sector", template="plotly_white")
     
-    #st.dataframe(df1)
-    return df1
-
-# TODO: Add Logic to this Function
-def live_prices(symbol_selections: list) -> None:
-    """Display Live Prices"""
-
-    st.subheader("Live Prices Updated")
-
-    st.write(symbol_selections)
-
-def investment_display_info(df: pd.DataFrame) -> None:
-    """Display Investment Info"""
-
-    pnl = round(df['Current Value'].sum() - df['Invested Value'].sum())
-    pct_change = round((pnl / df['Invested Value'].sum()) * 100, 2)
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric('Total Investment', value=round(df['Invested Value'].sum()))
-    c2.metric('Current Value', value=round(df['Current Value'].sum()))
-    c3.metric('Total P&L', value=pnl, delta='{}%'.format(pct_change))
-
+    for fig in [symbol_fig, sector_fig]:
+        fig.update_layout(margin=dict(t=0, b=0, l=0, r=0))
+        fig.update_traces(textposition='inside', textinfo='percent+label')
     
-def main() -> None:
-    a1, a2 = st.columns(2)
-    b1, b2 = st.columns(2)
-    a1.header('🚀 Co-Pilot')
-    with b1.expander("How to Use This"):
-        st.write(Path("HOW_TO_USE.md").read_text())
+    return symbol_fig, sector_fig
+
+def main():
+    st.set_page_config("Co-Pilot (Portfolio Management)", "🚀", layout="wide")
+    st.title("🚀 Co-Pilot (Portfolio Management)")
+    # How to Use Section
+    with st.expander("ℹ️ How to Use This"):
+        st.markdown(Path("HOW_TO_USE.md").read_text())
+        # File Upload with Zerodha Instructions
+        st.markdown("### 📂 Upload Holdings")
+        st.markdown("""
+            Upload your holdings from Zerodha:
+            - [Family Portfolio](https://console.zerodha.com/portfolio/holdings/family)
+            - [Personal Portfolio](https://console.zerodha.com/portfolio/holdings/)
+        """)
     
-    a2.subheader("Upload Holdings from Zerodha [Family](https://console.zerodha.com/portfolio/holdings/family)/[Personal](https://console.zerodha.com/portfolio/holdings/)")
-    uploaded_file = b2.file_uploader("Drag and Drop or Click to Upload", type=['xlsx'], accept_multiple_files=False)
+    # Initialize session state
+    if 'data_loaded' not in st.session_state:
+        st.session_state.portfolio_data, st.session_state.sectors_data = load_data()
+        st.session_state.data_loaded = True
+    
+    
+    uploaded_file = st.file_uploader(
+        "Drop your holdings Excel file here",
+        type=['xlsx'],
+        help="Export and upload your holdings data from Zerodha Console"
+    )
 
-
-    h1, h2 = st.columns(2)
-    if uploaded_file is None:
-        h2.info("Using example data. Upload a file above to use your own data!")
-        portfolio = pd.read_excel('./data/holdings-sample.xlsx', header=22, usecols="B:L")
+    if uploaded_file:
+        try:
+            df = pd.read_excel(uploaded_file, header=22, usecols="B:L")
+            if all(col in df.columns for col in REQUIRED_COLUMNS):
+                st.session_state.portfolio_data = df
+                st.success("✅ Successfully loaded your portfolio!")
+            else:
+                st.error("❌ Invalid file format. Using sample data instead.")
+        except Exception as e:
+            st.error(f"❌ Error loading file: {e}")
+            st.info("ℹ️ Using sample data for demonstration")
     else:
-        h2.success("Uploaded your file!")
-        #file_details = {"FileName":uploaded_file.name,"FileType":uploaded_file.type,"FileSize":uploaded_file.size}
-        portfolio = pd.read_excel(uploaded_file.name, header=22, usecols="B:L")
+        st.info("ℹ️ Currently showing sample portfolio data. Upload your holdings file to see your actual portfolio.")
+
+    # Process Data
+    df = process_portfolio(st.session_state.portfolio_data)
     
-    df = clean_data(portfolio)
+    # Symbol Selection in Sidebar
+    symbols = st.sidebar.multiselect(
+        "Select Symbols",
+        options=sorted(df["Symbol"].unique()),
+        default=df["Symbol"].unique()
+    )
     
-    # Implement when download for family holdings is available
-    #st.sidebar.subheader("Filter Displayed Accounts")
+    # Filter and merge data
+    filtered_df = df.loc[df["Symbol"].isin(symbols)]
+    df_with_sectors = pd.merge(
+        filtered_df,
+        st.session_state.sectors_data,
+        on='Symbol',
+        how='left'
+    )
 
-    # Select Tickers to Display
-    st.sidebar.subheader("Filter Displayed Tickers")
-    symbol_selections = st.sidebar.multiselect("Select Ticker Symbols to View", options=df["Symbol"], default=df["Symbol"])
-
-    # Display Sector File
-    sectors = pd.read_csv('./data/stock-sector.csv')
-    sectors.rename(columns={"NSE code": "Symbol"}, inplace=True)        
-
-    # Display Sector Breakdown
-    df_with_sectors = pd.merge(df, sectors, on='Symbol', how='left')
-        
-
-    # Data Preview
-    with h1.expander("Data Preview"):
-        st.write("Raw Dataframe", portfolio)
-        st.write("Cleaned Data", df)
-        st.write("Sector Breakdown", sectors)
-        st.write("Sectors in Investment", df_with_sectors.dropna(subset=['Sector']))
+    # Display Metrics
+    total_investment = filtered_df['Invested Value'].sum()
+    current_value = filtered_df['Current Value'].sum()
+    pnl = current_value - total_investment
+    pct_change = (pnl / total_investment) * 100 if total_investment else 0
     
-    investment_display_info(df)
-    with st.expander("Holdings"):
-        st.write(df)
-    st.markdown("""---""") 
-
-    import functools
-    import plotly.express as px
-
+    c1, c2, c3 = st.columns(3)
+    c1.metric('Total Investment', f"₹{total_investment:,.0f}")
+    c2.metric('Current Value', f"₹{current_value:,.0f}")
+    c3.metric('Total P&L', f"₹{pnl:,.0f}", f"{pct_change:+.1f}%")
+    
+    # Display Holdings
+    with st.expander("Holdings Details"):
+        st.dataframe(
+            filtered_df.style.format({
+                'Invested Value': '₹{:,.0f}',
+                'Current Value': '₹{:,.0f}',
+                'Total Quantity': '{:,.0f}'
+            }),
+            use_container_width=True,
+            hide_index=True
+        )
+    
+    # Display Charts
     c1, c2 = st.columns(2)
-    c1.subheader("Invested Value by Symbol")
-    fig = px.pie(df, values="Invested Value", names="Symbol")
-    fig.update_layout(margin=dict(t=0, b=0, l=0, r=0))
-    chart = functools.partial(c1.plotly_chart, use_container_width=True)
-    chart(fig)
-
-    c2.subheader("Sector Wise Allocation")
-    fig = px.pie(df_with_sectors, values="Invested Value", names="Sector")
-    fig.update_layout(margin=dict(t=0, b=0, l=0, r=0))
-    chart = functools.partial(c2.plotly_chart, use_container_width=True)
-    chart(fig)
-
-
-
+    symbol_fig, sector_fig = create_charts(filtered_df, df_with_sectors)
+    
+    c1.subheader("Investment Distribution")
+    c1.plotly_chart(symbol_fig, use_container_width=True)
+    
+    c2.subheader("Sector Distribution")
+    c2.plotly_chart(sector_fig, use_container_width=True)
 
 if __name__ == "__main__":
-    st.set_page_config(
-        "Zerodha Portfolio Analysis",
-        "🕴️",
-        initial_sidebar_state="expanded",
-        layout="wide",
-    )
     main()

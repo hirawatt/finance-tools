@@ -1,7 +1,11 @@
-numpy==2.2.4
-pandas==2.2.3
-plotly==5.24.1
-streamlit==1.44.1
-transformers==4.48.0
+numpy>=2.2.4
+pandas>=2.2.3
+plotly>=5.24.1
+streamlit>=1.44.1
+transformers>=4.48.0
 openpyxl
+numba>=0.57.1
+pyarrow>=14.0.1
+yfinance>=0.2.36
+scipy>=1.12.0  # Required for some statistical calculations
 #tensorflow

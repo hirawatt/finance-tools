@@ -21,6 +21,7 @@ def get_custom_indices() -> List[str]:
     """Get list of custom indices"""
     return custom_indices.custom_indices()
 
+@st.cache_data
 def filter_tradable_stocks(instruments: pd.DataFrame, exchange: str) -> pd.DataFrame:
     """Filter tradable stocks based on criteria"""
     return instruments[
@@ -42,7 +43,7 @@ def load_index_symbols(index_file: str) -> Optional[List[str]]:
 
 def create_tv_index_string(symbols: List[str]) -> str:
     """Create TradingView index string"""
-    return "NSE:" + "+NSE:".join(symbols)
+    return f"NSE:{'+NSE:'.join(symbols)}"
 
 def handle_file_operations(watchlist: str):
     """Handle file upload and download operations"""
@@ -77,11 +78,13 @@ def handle_file_operations(watchlist: str):
         col2.error("Watchlist file not found")
 
 def main():
-    # Main Header
     st.title("🎯 Custom Index Creator & Watchlists")
+    # Initialize session state
+    if "instruments_df" not in st.session_state:
+        st.session_state.instruments_df = load_instruments()
     
-    # Load Data
-    instruments_df = load_instruments()
+    # Use cached data
+    instruments_df = st.session_state.instruments_df
     if instruments_df.empty:
         st.stop()
     
@@ -91,7 +94,6 @@ def main():
         "Select Index/Watchlist",
         indices_list,
         horizontal=True,
-        format_func=lambda x: x.replace('_', ' ').title()
     )
 
     # Load and Display Index Constituents

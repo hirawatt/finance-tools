@@ -50,10 +50,10 @@ def main():
     nse_only = small_cap[nse_only_list]
 
     a1, a2, a3, a4 = st.columns(4)
-    a1.metric("No. of Small Cap Companies", str(small_cap.count()[3]))
-    a2.metric("No. of BSE Only Companies", str(bse_only.count()[3]))
-    a3.metric("No. of NSE Only Companies", str(nse_only.count()[3]))
-    a4.metric("No. of BSE/NSE Companies", str(nse_bse_small_cap[0]))
+    a1.metric("No. of Small Cap Companies", str(small_cap.count().iloc[3]))
+    a2.metric("No. of BSE Only Companies", str(bse_only.count().iloc[3]))
+    a3.metric("No. of NSE Only Companies", str(nse_only.count().iloc[3]))
+    a4.metric("No. of BSE/NSE Companies", str(nse_bse_small_cap.iloc[0]))
 
     min_stock_price = st.number_input("Min. Stock Price", value=25, min_value=0, max_value=100)
     base_df = ((small_cap.Price <= max_stock_price) & (small_cap.Price >= min_stock_price))

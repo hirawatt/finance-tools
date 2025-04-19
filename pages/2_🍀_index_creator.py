@@ -1,98 +1,125 @@
 import streamlit as st
 import pandas as pd
-import os, csv
+import os
+from pathlib import Path
+from typing import List, Optional
+import csv
 
 import utils.custom_indices as custom_indices
 
-index_path = os.getcwd() + "/indices/"
+# Constants
+INDEX_PATH = Path(os.getcwd()) / "indices"
+DEFAULT_EXCHANGE = "NSE"
 
 @st.cache_data
-def load_data() -> pd.DataFrame:
+def load_instruments() -> pd.DataFrame:
     instruments = pd.read_csv("instruments")
     return instruments
 
 @st.cache_data
-def ci() -> list:
+def get_custom_indices() -> List[str]:
+    """Get list of custom indices"""
     return custom_indices.custom_indices()
 
-def index_symbols(instruments: pd.DataFrame) -> list:
-    """Generate Index Symbols from All Instruments"""
-    # Select Instrument Exchange
-    exchange = st.selectbox(
-        "Select Instrument Exchange", instruments.exchange.unique().tolist(), index=3
-    )  # index=3 'NSE' is default
-    df = instruments[instruments["exchange"] == exchange]
-    # Get all Stocks List
-    stocks = df[
-        (instruments["instrument_type"] == "EQ")
-        & (instruments["lot_size"] == 1)
-        & (instruments["tick_size"] == 0.05)
+def filter_tradable_stocks(instruments: pd.DataFrame, exchange: str) -> pd.DataFrame:
+    """Filter tradable stocks based on criteria"""
+    return instruments[
+        (instruments["exchange"] == exchange) &
+        (instruments["instrument_type"] == "EQ") &
+        (instruments["lot_size"] == 1) &
+        (instruments["tick_size"] == 0.05)
     ]
 
-    with st.expander("Data Preview"):
-        st.write(instruments)
-        st.write(stocks[["name", "tradingsymbol"]].dropna())
+def load_index_symbols(index_file: str) -> Optional[List[str]]:
+    """Load symbols from index file with error handling"""
+    try:
+        with open(INDEX_PATH / f"{index_file}.csv") as f:
+            reader = csv.reader(f)
+            return next(reader)  # Get first row
+    except (FileNotFoundError, StopIteration) as e:
+        st.error(f"Error loading index file: {e}")
+        return None
 
-    st.subheader("TradingView Price Weighted Index")
-    # TV Index from Custom Symbols
-    # Select Symbols for Index
-    with st.form("symbol_selection_form"):
-        st.multiselect("Multiselect", stocks["name"])
-        st.form_submit_button("Submit")
+def create_tv_index_string(symbols: List[str]) -> str:
+    """Create TradingView index string"""
+    return "NSE:" + "+NSE:".join(symbols)
+
+def handle_file_operations(watchlist: str):
+    """Handle file upload and download operations"""
+    col1, col2 = st.columns(2)
     
-    return stocks["tradingsymbol"].tolist()
-
-def custom_index_symbols(cIndex: str) -> list:
-    """Return contents of Custom Index sent as Argument"""
-    with open(index_path + cIndex) as f:
-        reader = csv.reader(f)
-        dfIndex = list(reader)
-    symbols_list = dfIndex[0]
-    return symbols_list
-
-def tv_pw_index(symbols_list: list) -> str:
-    """Display Trading View Price Weighted Index"""
-    symbol = "NSE:" + "+NSE:".join(symbols_list)
-    return symbol
-
-def upload_download_file(watchlist):
-    """Streamlit Upload/Download File
-
-    Args:
-        watchlist (str): custom index/watchlist filename
-    """
-    c1, c2 = st.columns(2)
-    c1.file_uploader("Upload your watchlist file", type=['csv'], accept_multiple_files=False)
-    with open("./indices/{}.csv".format(watchlist), "rb") as f:
-        c2.download_button(
-            label="Download sample watchlist file",
-            data=f,
-            file_name="{}.csv".format(watchlist),
-            mime='text/csv',
-        )
+    # File Upload
+    uploaded_file = col1.file_uploader(
+        "Upload watchlist (CSV)",
+        type=['csv'],
+        help="Upload a CSV file with stock symbols"
+    )
+    
+    if uploaded_file:
+        try:
+            # Process uploaded file
+            df = pd.read_csv(uploaded_file)
+            st.success("File uploaded successfully!")
+            st.dataframe(df)
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
+    
+    # File Download
+    try:
+        with open(INDEX_PATH / f"{watchlist}.csv", "rb") as f:
+            col2.download_button(
+                label="📥 Download current watchlist",
+                data=f,
+                file_name=f"{watchlist}.csv",
+                mime='text/csv',
+            )
+    except FileNotFoundError:
+        col2.error("Watchlist file not found")
 
 def main():
-    st.subheader(":first_place_medal: Custom Index Creator | Watchlists")
-    indices_list = ci()
-    index_file = st.radio("Select Index | Watchlist", indices_list, horizontal=True)
-
-    instruments = load_data()
-    #index_symbols(instruments)
-    constituents = custom_index_symbols(index_file + '.csv')
-    st.multiselect("Stocks in Selected Index | Watchlist", constituents, constituents)
-    upload_download_file(index_file)
-
-    st.markdown("---")
-    # Basket to buy NIFTY 50 as an ETF
+    # Main Header
+    st.title("🎯 Custom Index Creator & Watchlists")
     
+    # Load Data
+    instruments_df = load_instruments()
+    if instruments_df.empty:
+        st.stop()
+    
+    # Index Selection
+    indices_list = get_custom_indices()
+    index_file = st.radio(
+        "Select Index/Watchlist",
+        indices_list,
+        horizontal=True,
+        format_func=lambda x: x.replace('_', ' ').title()
+    )
 
-
-    # TV Index from Custom Index/Symbol
-    st.sidebar.subheader(":second_place_medal: TradingView Price Weighted Index")
-    st.sidebar.info("Paste below symbol to TradingView")
-    symbol = tv_pw_index(constituents)
-    st.sidebar.code(symbol, language="python")
-    st.sidebar.markdown("---")
+    # Load and Display Index Constituents
+    if constituents := load_index_symbols(index_file):
+        selected_stocks = st.multiselect(
+            "Manage Stocks in Selected Index/Watchlist",
+            constituents,
+            constituents,
+            help="Select/deselect stocks to modify the index"
+        )
+        
+        if selected_stocks != constituents:
+            st.warning("You have modified the selection. Save changes?")
+            if st.button("💾 Save Changes"):
+                # Add save functionality here
+                pass
+    
+    # File Operations
+    st.markdown("### 📁 File Operations")
+    handle_file_operations(index_file)
+    
+    # TradingView Integration
+    with st.sidebar:
+        st.subheader("📊 TradingView Integration")
+        if constituents:
+            tv_symbol = create_tv_index_string(constituents)
+            st.info("Copy this symbol to TradingView:")
+            st.code(tv_symbol, language="text")
 
 if __name__ == "__main__":
     st.set_page_config(

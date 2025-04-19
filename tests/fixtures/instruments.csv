@@ -1,0 +1,5 @@
+instrument_token,exchange_token,tradingsymbol,name,last_price,expiry,strike,tick_size,lot_size,instrument_type,segment,exchange
+123,456,RELIANCE,Reliance Industries,2500,N.A.,0,0.05,1,EQ,NSE,NSE
+456,789,TCS,Tata Consultancy Services,3500,N.A.,0,0.05,1,EQ,NSE,NSE
+789,101,INFY,Infosys,1500,N.A.,0,0.05,1,EQ,NSE,NSE
+101,112,HDFCBANK,HDFC Bank,1400,N.A.,0,0.05,1,EQ,NSE,NSE

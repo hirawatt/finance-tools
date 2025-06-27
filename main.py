@@ -18,13 +18,10 @@ st.set_page_config(
 def main() -> None:
     st.write("# Welcome to The Trading Dashboard")
 
-    st.markdown(
-        '''
-        - 🚀 Co-Pilot
-        - 💡 Idea Generation
-        - 🚦 Due Diligence
-        '''
-    )
+    st.page_link("pages/3_💰_portfolio_analysis.py", label="🚀 Co-Pilot", use_container_width=True)
+    st.page_link("pages/1_📈_stocks_to_trade.py", label="💡 Idea Generation", use_container_width=True)
+    st.page_link("pages/4_🤯_surprises.py", label="🚦 Due Diligence", use_container_width=True)
+    st.markdown("---") # Add a separator
 
     info = pd.read_csv('./data/info.csv')
     #st.dataframe(info)

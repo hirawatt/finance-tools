@@ -1,7 +1,7 @@
 numpy>=2.2.4
 pandas>=2.2.3
 plotly>=5.24.1
-streamlit>=1.44.1
+streamlit>=1.46.0
 transformers>=4.48.0
 openpyxl
 numba>=0.57.1

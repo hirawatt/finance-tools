@@ -9,3 +9,4 @@ pyarrow>=14.0.1
 yfinance>=0.2.36
 scipy>=1.12.0  # Required for some statistical calculations
 #tensorflow
+pytest

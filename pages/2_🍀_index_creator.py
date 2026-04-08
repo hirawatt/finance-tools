@@ -5,21 +5,20 @@ from pathlib import Path
 from typing import List, Optional
 import csv
 
-import utils.custom_indices as custom_indices
+from utils.custom_indices import INDEX_PATH, get_safe_path, custom_indices as get_indices
 
 # Constants
-INDEX_PATH = Path(os.getcwd()) / "indices"
 DEFAULT_EXCHANGE = "NSE"
+
+@st.cache_data
+def get_custom_indices() -> List[str]:
+    """Get list of custom indices"""
+    return get_indices()
 
 @st.cache_data
 def load_instruments() -> pd.DataFrame:
     instruments = pd.read_csv("instruments")
     return instruments
-
-@st.cache_data
-def get_custom_indices() -> List[str]:
-    """Get list of custom indices"""
-    return custom_indices.custom_indices()
 
 @st.cache_data
 def filter_tradable_stocks(instruments: pd.DataFrame, exchange: str) -> pd.DataFrame:
@@ -33,8 +32,13 @@ def filter_tradable_stocks(instruments: pd.DataFrame, exchange: str) -> pd.DataF
 
 def load_index_symbols(index_file: str) -> Optional[List[str]]:
     """Load symbols from index file with error handling"""
+    safe_path = get_safe_path(index_file)
+    if not safe_path or not safe_path.exists():
+        st.error(f"Error: Invalid index file or file not found.")
+        return None
+
     try:
-        with open(INDEX_PATH / f"{index_file}.csv") as f:
+        with open(safe_path) as f:
             reader = csv.reader(f)
             return next(reader)  # Get first row
     except (FileNotFoundError, StopIteration) as e:
@@ -66,16 +70,20 @@ def handle_file_operations(watchlist: str):
             st.error(f"Error processing file: {e}")
     
     # File Download
-    try:
-        with open(INDEX_PATH / f"{watchlist}.csv", "rb") as f:
-            col2.download_button(
-                label="📥 Download current watchlist",
-                data=f,
-                file_name=f"{watchlist}.csv",
-                mime='text/csv',
-            )
-    except FileNotFoundError:
-        col2.error("Watchlist file not found")
+    safe_path = get_safe_path(watchlist)
+    if safe_path and safe_path.exists():
+        try:
+            with open(safe_path, "rb") as f:
+                col2.download_button(
+                    label="📥 Download current watchlist",
+                    data=f,
+                    file_name=f"{watchlist}.csv",
+                    mime='text/csv',
+                )
+        except FileNotFoundError:
+            col2.error("Watchlist file not found")
+    else:
+        col2.error("Watchlist file not found or invalid")
 
 def main():
     st.title("🎯 Custom Index Creator & Watchlists")

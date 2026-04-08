@@ -65,7 +65,7 @@ def main():
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, header=22, usecols="B:L")
-            if all(col in df.columns for col in REQUIRED_COLUMNS):
+            if set(REQUIRED_COLUMNS).issubset(df.columns):
                 st.session_state.portfolio_data = df
                 st.success("✅ Successfully loaded your portfolio!")
             else:

@@ -9,7 +9,7 @@ from itertools import combinations
 
 @st.cache_data
 def find_combos(arr, no_of_stocks):
-    return [sum(combo) for combo in combinations(arr, no_of_stocks)]
+    return list(map(sum, combinations(arr, no_of_stocks)))
 
 def main():
     st.sidebar.subheader("Fund Stock Screener")

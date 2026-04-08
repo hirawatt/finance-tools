@@ -116,8 +116,18 @@ def main():
         if selected_stocks != constituents:
             st.warning("You have modified the selection. Save changes?")
             if st.button("💾 Save Changes"):
-                # Add save functionality here
-                pass
+                safe_path = get_safe_path(index_file)
+                if safe_path:
+                    try:
+                        with open(safe_path, "w", newline="") as f:
+                            writer = csv.writer(f)
+                            writer.writerow(selected_stocks)
+                        st.success("Changes saved successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error saving changes: {e}")
+                else:
+                    st.error("Invalid index file path.")
     
     # File Operations
     st.markdown("### 📁 File Operations")

@@ -53,7 +53,7 @@ streamlit run app.py
 - [ ] Risk Management
   - [ ] ASM/GSM List Monitoring
   - [ ] Default Probability Assessment
-  - [ ] Automated Rebalancing Suggestions
+  - [x] Automated Rebalancing Suggestions
 - [ ] Market Intelligence
   - [ ] Earnings Calendar
   - [ ] Price Forecasting

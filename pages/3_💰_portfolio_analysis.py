@@ -6,6 +6,12 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 from plotly.graph_objs._figure import Figure
 
+from utils.rebalancing import (
+    STRATEGIES,
+    rebalancing_plan,
+    target_weights,
+    turnover,
+)
 from utils.market_data import (
     BENCHMARK_NAME,
     MIN_OBSERVATIONS,
@@ -120,8 +126,8 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
     weights = filtered_df.groupby("Symbol")["Invested Value"].sum()
     portfolio_returns = weighted_portfolio_returns(returns, weights)
 
-    corr_tab, risk_tab, valuation_tab, tearsheet_tab = st.tabs(
-        ["🔗 Correlation", "🎯 Beta & Risk", "💹 Valuation", "📈 Tearsheet"]
+    corr_tab, risk_tab, valuation_tab, rebalance_tab, tearsheet_tab = st.tabs(
+        ["🔗 Correlation", "🎯 Beta & Risk", "💹 Valuation", "⚖️ Rebalance", "📈 Tearsheet"]
     )
 
     with corr_tab:
@@ -220,6 +226,72 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
                 )
                 fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
                 st.plotly_chart(fig, width="stretch")
+
+    with rebalance_tab:
+        st.caption(
+            "Target allocations are built from daily returns; trades are sized against "
+            "current market value at the latest close."
+        )
+        c1, c2 = st.columns(2)
+        strategy = c1.selectbox("Target allocation", STRATEGIES, key="rebalance_strategy")
+        max_weight_pct = c2.slider(
+            "Max weight per holding (%)", 5, 100, 25, 5, key="rebalance_cap"
+        )
+
+        latest_prices = prices.sort_index().ffill().iloc[-1]
+        current_values = filtered_df.groupby("Symbol")["Current Value"].sum().reindex(usable)
+        current_quantities = filtered_df.groupby("Symbol")["Total Quantity"].sum().reindex(usable)
+
+        try:
+            weights_target = target_weights(returns, strategy, max_weight_pct / 100)
+        except Exception as e:
+            st.warning(f"Could not compute a target allocation: {e}")
+            weights_target = pd.Series(dtype=float)
+
+        if weights_target.empty:
+            st.info("Not enough data to suggest a rebalance.")
+        else:
+            plan = rebalancing_plan(
+                current_values, current_quantities, latest_prices, weights_target
+            )
+            buys = plan[plan["Action"] == "Buy"]
+            sells = plan[plan["Action"] == "Sell"]
+
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Buy value", f"₹{buys['Δ Value'].sum():,.0f}")
+            m2.metric("Sell value", f"₹{-sells['Δ Value'].sum():,.0f}")
+            m3.metric("Turnover (one-way)", f"{turnover(plan):.1%}")
+
+            comparison = plan[["Current %", "Target %"]].reset_index()
+            fig = px.bar(
+                comparison,
+                x="Symbol",
+                y=["Current %", "Target %"],
+                barmode="group",
+                template="plotly_white",
+                title="Current vs target allocation",
+            )
+            fig.update_layout(margin=dict(t=40, b=0, l=0, r=0), xaxis_title="", yaxis_title="%")
+            st.plotly_chart(fig, width="stretch")
+
+            st.dataframe(
+                plan.style.format(
+                    {
+                        "Price": "₹{:,.2f}",
+                        "Current Qty": "{:,.0f}",
+                        "Target Qty": "{:,.0f}",
+                        "Δ Qty": "{:+,.0f}",
+                        "Current Value": "₹{:,.0f}",
+                        "Target Value": "₹{:,.0f}",
+                        "Δ Value": "₹{:+,.0f}",
+                        "Current %": "{:.1f}%",
+                        "Target %": "{:.1f}%",
+                    },
+                    na_rep="–",
+                ),
+                width="stretch",
+            )
+            st.caption("Δ Qty is rounded to whole shares; a negative figure is a sell.")
 
     with tearsheet_tab:
         report = full_metrics_report(portfolio_returns)

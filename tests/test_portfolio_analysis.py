@@ -13,6 +13,7 @@ class MockPackage(MagicMock):
 
 
 _MISSING = object()
+_pre_existing_modules = set(sys.modules)
 
 # The page imports pandas/streamlit/plotly at import time. Stub them only while
 # the module is being loaded, then restore whatever was there before so the real
@@ -34,6 +35,10 @@ try:
     sys.modules["portfolio_analysis"] = portfolio_analysis
     spec.loader.exec_module(portfolio_analysis)
 finally:
+    # Drop any module imported while pandas was stubbed (e.g. utils.market_data),
+    # so nothing caches a mock reference for later test modules.
+    for name in set(sys.modules) - _pre_existing_modules:
+        sys.modules.pop(name, None)
     for name, original in _saved_modules.items():
         if original is _MISSING:
             sys.modules.pop(name, None)

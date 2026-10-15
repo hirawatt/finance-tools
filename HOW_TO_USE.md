@@ -19,6 +19,9 @@ history (Yahoo Finance) for your holdings and the NIFTY 50 benchmark:
   risk/return summary for the whole portfolio.
 - **Valuation** — trailing/forward P/E, P/B, EPS and market cap per holding,
   with the portfolio's value-weighted P/E (total value ÷ total earnings).
+- **Rebalance** — target allocations (equal weight, inverse volatility, risk
+  parity) with an optional per-holding cap, shown against your current mix as a
+  buy/sell trade list in shares and rupees.
 - **Tearsheet** — the full [quantstats](https://github.com/ranaroussi/quantstats)
   metrics table (Sharpe, Sortino, Calmar, drawdown, etc.).
 

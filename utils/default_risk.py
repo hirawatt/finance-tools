@@ -21,6 +21,7 @@ from typing import Iterable, Optional
 
 import pandas as pd
 
+from utils.concurrency import parallel_map
 from utils.market_data import to_ticker
 
 # Balance-sheet / income-statement line items, with fallbacks for the varying
@@ -136,8 +137,8 @@ def fetch_default_risk(
 
     market_caps = market_caps if market_caps is not None else pd.Series(dtype=float)
     clean = [s for s in dict.fromkeys(str(s).strip() for s in symbols) if s]
-    rows = {}
-    for symbol in clean:
+
+    def _statement_inputs(symbol: str) -> dict:
         ticker = yf.Ticker(to_ticker(symbol))
         try:
             balance_sheet = ticker.balance_sheet
@@ -147,8 +148,15 @@ def fetch_default_risk(
             income_stmt = ticker.income_stmt
         except Exception:
             income_stmt = None
+        return extract_z_inputs(balance_sheet, income_stmt)
 
-        inputs = extract_z_inputs(balance_sheet, income_stmt)
+    rows = {}
+    for symbol, inputs, _error in parallel_map(_statement_inputs, clean):
+        # A symbol whose statements could not be fetched has no inputs; score it
+        # as missing rather than dropping the row, so coverage stays visible.
+        if inputs is None:
+            inputs = extract_z_inputs(None, None)
+
         score = altman_z_score(inputs, market_caps.get(symbol))
         rows[symbol] = {
             "Z-score": score,

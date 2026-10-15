@@ -16,6 +16,8 @@ from typing import Iterable, Optional
 
 import pandas as pd
 
+from utils.concurrency import retry_call
+
 ASM_URL = "https://www.nseindia.com/api/reportASM"
 GSM_URL = "https://www.nseindia.com/api/reportGSM"
 NSE_HOME = "https://www.nseindia.com"
@@ -96,10 +98,14 @@ def parse_gsm(payload) -> pd.DataFrame:
 
 
 def _get_json(url: str, timeout: int, cookie_jar) -> object:
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar))
-    request = urllib.request.Request(url, headers=_HEADERS)
-    with opener.open(request, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8-sig"))
+    def _fetch() -> object:
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar))
+        request = urllib.request.Request(url, headers=_HEADERS)
+        with opener.open(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8-sig"))
+
+    # NSE endpoints fail intermittently; a short retry rides out the blips.
+    return retry_call(_fetch)
 
 
 def _warm_up(cookie_jar, timeout: int) -> None:

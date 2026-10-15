@@ -1,8 +1,12 @@
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import Optional
 
-INDEX_PATH = (Path(os.getcwd()) / "indices").resolve()
+# Resolve against the repository root rather than the process working directory,
+# so the app behaves the same however it is launched.
+INDEX_PATH = (Path(__file__).resolve().parent.parent / "indices").resolve()
 
 def get_safe_path(index_file: str) -> Optional[Path]:
     """Get a safe path within INDEX_PATH, preventing traversal"""

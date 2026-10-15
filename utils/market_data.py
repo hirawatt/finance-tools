@@ -18,6 +18,8 @@ from typing import Iterable, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
+from utils.concurrency import parallel_map, retry_call
+
 # NSE symbols are suffixed on Yahoo Finance, e.g. POLYCAB -> POLYCAB.NS
 NSE_SUFFIX = ".NS"
 DEFAULT_BENCHMARK = "^NSEI"  # NIFTY 50
@@ -123,13 +125,15 @@ def fetch_price_history(
     if not downloads:
         return pd.DataFrame(), None
 
-    data = yf.download(
-        downloads,
-        period=period,
-        interval="1d",
-        auto_adjust=True,
-        progress=False,
-        threads=True,
+    data = retry_call(
+        lambda: yf.download(
+            downloads,
+            period=period,
+            interval="1d",
+            auto_adjust=True,
+            progress=False,
+            threads=True,
+        )
     )
     close = _extract_close(data, downloads)
     if close.empty:
@@ -152,23 +156,26 @@ def fetch_price_history(
 def fetch_company_data(
     symbols: Iterable[str], fields: dict = COMPANY_FIELDS
 ) -> pd.DataFrame:
-    """Fetch labelled fundamentals for ``symbols`` in a single pass.
+    """Fetch labelled fundamentals for ``symbols`` in one pass.
 
     Returns a DataFrame indexed by symbol with one column per display label in
     ``fields``. Symbols that fail to resolve are omitted, so a single bad ticker
     never breaks the whole table.
+
+    Yahoo's quote endpoint is per-symbol, so the requests are fanned out over a
+    bounded thread pool (with retries) instead of run one after another.
     """
     import yfinance as yf
 
     clean = [s for s in dict.fromkeys(str(s).strip() for s in symbols) if s]
     labels = list(dict.fromkeys(fields.values()))
+
+    def _info(symbol: str) -> dict:
+        return yf.Ticker(to_ticker(symbol)).info
+
     rows = {}
-    for symbol in clean:
-        try:
-            info = yf.Ticker(to_ticker(symbol)).info
-        except Exception:
-            continue
-        if not isinstance(info, dict) or not info:
+    for symbol, info, error in parallel_map(_info, clean):
+        if error is not None or not isinstance(info, dict) or not info:
             continue
         rows[symbol] = {label: info.get(key) for key, label in fields.items()}
 
@@ -207,20 +214,30 @@ def compute_beta(returns: pd.DataFrame, benchmark: pd.Series) -> pd.Series:
         return pd.Series(dtype=float)
 
     joined = returns.join(benchmark.rename("__benchmark__"), how="inner")
-    benchmark_var = joined["__benchmark__"].var()
+    if joined.empty:
+        return pd.Series(dtype=float)
+
+    bench = joined["__benchmark__"]
+    benchmark_var = bench.var()
     if not benchmark_var or np.isnan(benchmark_var):
         return pd.Series(dtype=float)
 
-    betas = {}
-    for column in returns.columns:
-        pair = joined[[column, "__benchmark__"]].dropna()
-        if len(pair) < MIN_OBSERVATIONS:
-            continue
-        betas[column] = pair[column].cov(pair["__benchmark__"]) / benchmark_var
+    # ``DataFrame.cov`` drops NaNs pairwise, exactly like the per-column
+    # ``Series.cov`` loop it replaces, so the covariance lookup is one operation
+    # instead of one pass per holding.
+    covariances = joined.cov()["__benchmark__"]
 
-    if not betas:
+    # Overlap is counted on the rows the benchmark actually has, matching the
+    # pairwise dropna the covariance uses.
+    overlap = joined.loc[bench.notna()].notna().sum()
+    usable = [c for c in returns.columns if overlap.get(c, 0) >= MIN_OBSERVATIONS]
+    if not usable:
         return pd.Series(dtype=float)
-    return pd.Series(betas, name="Beta").sort_values(ascending=False)
+
+    betas = (covariances.loc[usable] / benchmark_var).dropna()
+    if betas.empty:
+        return pd.Series(dtype=float)
+    return betas.rename("Beta").sort_values(ascending=False)
 
 
 def weighted_portfolio_returns(returns: pd.DataFrame, weights: pd.Series) -> pd.Series:

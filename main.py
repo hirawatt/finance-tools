@@ -15,6 +15,12 @@ st.set_page_config(
     },
 )
 
+@st.cache_data
+def load_info() -> pd.DataFrame:
+    """Load the dataset guide. Cached so the CSV is parsed once per process."""
+    return pd.read_csv('./data/info.csv')
+
+
 def main() -> None:
     st.write("# Welcome to The Trading Dashboard")
 
@@ -23,7 +29,7 @@ def main() -> None:
     st.page_link("pages/4_🤯_surprises.py", label="🚦 Due Diligence", width="stretch")
     st.markdown("---") # Add a separator
 
-    info = pd.read_csv('./data/info.csv')
+    info = load_info()
     #st.dataframe(info)
 
     st.write(Path("DATA.md").read_text())

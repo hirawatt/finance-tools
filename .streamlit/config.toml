@@ -12,4 +12,5 @@ runOnSave = true
 
 [runner]
 magicEnabled = false
-fastReruns = false
+# Faster reruns (delta-based instead of a full script resend).
+fastReruns = true

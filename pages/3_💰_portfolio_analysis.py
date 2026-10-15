@@ -40,6 +40,19 @@ QUANTITY_COLUMNS = ['Quantity Available', 'Quantity Discrepant', 'Quantity Long 
                    'Quantity Pledged (Margin)', 'Quantity Pledged (Loan)']
 REQUIRED_COLUMNS = ['Symbol', 'Average Price', 'Previous Closing Price'] + QUANTITY_COLUMNS
 
+# Analytics sections. They are rendered one at a time rather than as ``st.tabs``,
+# because every tab body executes on every rerun — which would trigger all of the
+# per-symbol network fetches even when the visitor only opens one section.
+ANALYTICS_SECTIONS = (
+    "🔗 Correlation",
+    "🎯 Beta & Risk",
+    "💹 Valuation",
+    "🚩 Risk Flags",
+    "⚖️ Rebalance",
+    "🔮 Outlook",
+    "📈 Tearsheet",
+)
+
 @st.cache_data(ttl=3600)
 def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Load and cache both portfolio and sector data"""
@@ -149,41 +162,21 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
     weights = filtered_df.groupby("Symbol")["Invested Value"].sum()
     portfolio_returns = weighted_portfolio_returns(returns, weights)
 
-    try:
-        company_data = load_company_data(tuple(sorted(usable)))
-    except Exception as e:  # network / parsing failures should not break the page
-        st.warning(f"Could not fetch fundamentals: {e}")
-        company_data = pd.DataFrame()
-
-    market_caps = {}
-    if company_data is not None and not company_data.empty and "Market cap" in company_data:
-        market_caps = company_data["Market cap"].dropna().to_dict()
-
-    try:
-        default_risk = load_default_risk(tuple(sorted(usable)), market_caps)
-    except Exception as e:
-        st.warning(f"Could not assess default risk: {e}")
-        default_risk = pd.DataFrame()
-
-    try:
-        earnings = load_earnings(tuple(sorted(usable)))
-    except Exception as e:
-        st.warning(f"Could not fetch the earnings calendar: {e}")
-        earnings = pd.DataFrame()
-
-    corr_tab, risk_tab, valuation_tab, flags_tab, rebalance_tab, outlook_tab, tearsheet_tab = st.tabs(
-        [
-            "🔗 Correlation",
-            "🎯 Beta & Risk",
-            "💹 Valuation",
-            "🚩 Risk Flags",
-            "⚖️ Rebalance",
-            "🔮 Outlook",
-            "📈 Tearsheet",
-        ]
+    # Render one section at a time. ``st.tabs`` executes every body on every
+    # rerun, which would force all of the per-symbol network fetches
+    # (fundamentals, Z-score statements, earnings) even when the visitor only
+    # wants a single view.
+    section = st.segmented_control(
+        "Analytics section",
+        ANALYTICS_SECTIONS,
+        default=ANALYTICS_SECTIONS[0],
+        key="analytics_section",
+        label_visibility="collapsed",
     )
+    if section is None:  # the control can be cleared back to no selection
+        section = ANALYTICS_SECTIONS[0]
 
-    with corr_tab:
+    if section == "🔗 Correlation":
         corr = correlation_matrix(returns)
         fig = px.imshow(
             corr,
@@ -205,7 +198,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
                 + ", ".join(f"{a} / {b} ({v:.2f})" for (a, b), v in pairs.head(3).items())
             )
 
-    with risk_tab:
+    if section == "🎯 Beta & Risk":
         if benchmark is not None and not benchmark.empty:
             beta = compute_beta(returns, benchmark)
             if beta.empty:
@@ -225,7 +218,13 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
             width="stretch",
         )
 
-    with valuation_tab:
+    if section == "💹 Valuation":
+        try:
+            company_data = load_company_data(tuple(sorted(usable)))
+        except Exception as e:  # network / parsing failures should not break the page
+            st.warning(f"Could not fetch fundamentals: {e}")
+            company_data = pd.DataFrame()
+
         if company_data is None or company_data.empty:
             st.info("No valuation data available for the selected symbols.")
         else:
@@ -275,7 +274,23 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
                 fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
                 st.plotly_chart(fig, width="stretch")
 
-    with flags_tab:
+    if section == "🚩 Risk Flags":
+        try:
+            company_data = load_company_data(tuple(sorted(usable)))
+        except Exception as e:  # network / parsing failures should not break the page
+            st.warning(f"Could not fetch fundamentals: {e}")
+            company_data = pd.DataFrame()
+
+        market_caps = {}
+        if company_data is not None and not company_data.empty and "Market cap" in company_data:
+            market_caps = company_data["Market cap"].dropna().to_dict()
+
+        try:
+            default_risk = load_default_risk(tuple(sorted(usable)), market_caps)
+        except Exception as e:
+            st.warning(f"Could not assess default risk: {e}")
+            default_risk = pd.DataFrame()
+
         st.subheader("Fundamental flags")
         if company_data is None or company_data.empty:
             st.info("No fundamentals available to screen for red flags.")
@@ -354,7 +369,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
                 c3.metric("Holdings on lists", matched["Symbol"].nunique())
                 st.dataframe(matched, width="stretch", hide_index=True)
 
-    with rebalance_tab:
+    if section == "⚖️ Rebalance":
         st.caption(
             "Target allocations are built from daily returns; trades are sized against "
             "current market value at the latest close."
@@ -420,7 +435,13 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
             )
             st.caption("Δ Qty is rounded to whole shares; a negative figure is a sell.")
 
-    with outlook_tab:
+    if section == "🔮 Outlook":
+        try:
+            earnings = load_earnings(tuple(sorted(usable)))
+        except Exception as e:
+            st.warning(f"Could not fetch the earnings calendar: {e}")
+            earnings = pd.DataFrame()
+
         st.subheader("Upcoming earnings")
         if earnings is None or earnings.empty:
             st.info("No upcoming earnings dates available for the selected holdings.")
@@ -484,7 +505,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
             c2.metric("Pessimistic (P5)", f"₹{final['P5']:,.0f}")
             c3.metric("Optimistic (P95)", f"₹{final['P95']:,.0f}")
 
-    with tearsheet_tab:
+    if section == "📈 Tearsheet":
         report = full_metrics_report(portfolio_returns)
         if report.empty:
             st.info("Not enough data to build a tearsheet.")

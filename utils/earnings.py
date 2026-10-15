@@ -11,6 +11,7 @@ from typing import Iterable, Optional
 
 import pandas as pd
 
+from utils.concurrency import parallel_map
 from utils.market_data import to_ticker
 
 EARNINGS_COLUMNS = ["Symbol", "Date", "Days away", "EPS estimate", "Revenue estimate"]
@@ -69,11 +70,12 @@ def fetch_earnings_calendar(
     today = today or date.today()
     clean = [s for s in dict.fromkeys(str(s).strip() for s in symbols) if s]
 
+    def _calendar(symbol: str):
+        return yf.Ticker(to_ticker(symbol)).calendar
+
     rows = []
-    for symbol in clean:
-        try:
-            calendar = yf.Ticker(to_ticker(symbol)).calendar
-        except Exception:
+    for symbol, calendar, error in parallel_map(_calendar, clean):
+        if error is not None:
             continue
         parsed = parse_next_earnings(symbol, calendar, today)
         if parsed:

@@ -2,7 +2,11 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-raw_data = pd.read_csv('./data/all-companies-list.csv', dtype={'BSE Code': str})
+@st.cache_data
+def load_companies() -> pd.DataFrame:
+    """The added company master list. Cached so the CSV is parsed once per
+    process instead of on every rerun."""
+    return pd.read_csv('./data/all-companies-list.csv', dtype={'BSE Code': str})
 
 # Combination Sum
 from itertools import combinations
@@ -31,7 +35,7 @@ def main():
     c2.metric("Max. Stock Price", max_stock_price)
 
     # Stock Search Base Dataframe
-    df = raw_data.iloc[:, [0, 1, 2, 3, 4]]
+    df = load_companies().iloc[:, [0, 1, 2, 3, 4]]
 
     ## Small-Cap Filter
     #small_cap = df[251:].count()

@@ -1,18 +1,30 @@
 import pytest
 from unittest.mock import patch, MagicMock, mock_open, call
 import sys
-
-# Mock pandas, streamlit, and other dependencies to avoid ModuleNotFoundError
-mock_pd = MagicMock()
-sys.modules['pandas'] = mock_pd
-mock_st = MagicMock()
-sys.modules['streamlit'] = mock_st
-
 import importlib.util
-spec = importlib.util.spec_from_file_location("index_creator", "pages/2_🍀_index_creator.py")
-index_creator = importlib.util.module_from_spec(spec)
-sys.modules["index_creator"] = index_creator
-spec.loader.exec_module(index_creator)
+
+_MISSING = object()
+
+# Mock pandas and streamlit only while loading the page, then restore whatever
+# was there before so the real packages remain available to other test modules
+# running in the same process.
+_overrides = {'pandas': MagicMock(), 'streamlit': MagicMock()}
+mock_pd = _overrides['pandas']
+mock_st = _overrides['streamlit']
+_saved_modules = {name: sys.modules.get(name, _MISSING) for name in _overrides}
+
+sys.modules.update(_overrides)
+try:
+    spec = importlib.util.spec_from_file_location("index_creator", "pages/2_🍀_index_creator.py")
+    index_creator = importlib.util.module_from_spec(spec)
+    sys.modules["index_creator"] = index_creator
+    spec.loader.exec_module(index_creator)
+finally:
+    for name, original in _saved_modules.items():
+        if original is _MISSING:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = original
 
 def test_load_index_symbols_valid():
     with patch('index_creator.get_safe_path') as mock_get_safe_path:

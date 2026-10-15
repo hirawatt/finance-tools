@@ -1,32 +1,45 @@
 import sys
+import unittest
+from importlib.util import module_from_spec, spec_from_file_location
 from unittest.mock import MagicMock
 
-# Create mock objects that behave like packages
+
 class MockPackage(MagicMock):
+    """A MagicMock that also behaves like a package (has ``__path__``)."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__path__ = []
 
-# Mock streamlit before importing portfolio_analysis
-sys.modules["streamlit"] = MagicMock()
 
-# Mock pandas
-sys.modules["pandas"] = MagicMock()
+_MISSING = object()
 
-# Mock plotly
-sys.modules["plotly"] = MockPackage()
-sys.modules["plotly.express"] = MagicMock()
-sys.modules["plotly.graph_objs"] = MockPackage()
-sys.modules["plotly.graph_objs._figure"] = MagicMock()
+# The page imports pandas/streamlit/plotly at import time. Stub them only while
+# the module is being loaded, then restore whatever was there before so the real
+# packages stay untouched for other tests in the same process.
+_OVERRIDES = {
+    "streamlit": MagicMock(),
+    "pandas": MagicMock(),
+    "plotly": MockPackage(),
+    "plotly.express": MagicMock(),
+    "plotly.graph_objs": MockPackage(),
+    "plotly.graph_objs._figure": MagicMock(),
+}
+_saved_modules = {name: sys.modules.get(name, _MISSING) for name in _OVERRIDES}
 
-import unittest
-from importlib.util import spec_from_file_location, module_from_spec
+sys.modules.update(_OVERRIDES)
+try:
+    spec = spec_from_file_location("portfolio_analysis", "pages/3_💰_portfolio_analysis.py")
+    portfolio_analysis = module_from_spec(spec)
+    sys.modules["portfolio_analysis"] = portfolio_analysis
+    spec.loader.exec_module(portfolio_analysis)
+finally:
+    for name, original in _saved_modules.items():
+        if original is _MISSING:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = original
 
-# Load the module
-spec = spec_from_file_location("portfolio_analysis", "pages/3_💰_portfolio_analysis.py")
-portfolio_analysis = module_from_spec(spec)
-sys.modules["portfolio_analysis"] = portfolio_analysis
-spec.loader.exec_module(portfolio_analysis)
 
 class TestPortfolioAnalysis(unittest.TestCase):
     def test_process_portfolio_logic(self):
@@ -37,8 +50,6 @@ class TestPortfolioAnalysis(unittest.TestCase):
         3. Calculates 'Invested Value' and 'Current Value' using the total quantity.
         4. Returns only the required columns.
         """
-        import pandas as pd
-
         # 1. Create a mock DataFrame
         mock_df = MagicMock()
         mock_copy = MagicMock()

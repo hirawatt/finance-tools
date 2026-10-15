@@ -1,10 +1,12 @@
-numpy>=2.2.4
-pandas>=2.2.3
-plotly>=5.24.1
-streamlit>=1.46.0
+numpy==2.5.4
+pandas==3.0.6
+plotly==7.1.0
+streamlit==1.66.0
 # transformers>=4.48.0 # Code using this is commented out
-openpyxl # Kept as it's likely used by pandas for .xlsx files
-# numba>=0.57.1 # No direct usage found
-pyarrow>=14.0.1 # Required by streamlit
-# yfinance>=0.2.36 # No direct usage found
-# scipy>=1.12.0  # Required for some statistical calculations - Commenting out as no direct usage found
+openpyxl==3.1.5 # Kept as it's likely used by pandas for .xlsx files
+pyarrow==26.0.0 # Required by streamlit
+# Portfolio analytics: quantstats powers the tearsheet/risk metrics,
+# yfinance supplies the daily price history, scipy underpins quantstats' stats.
+quantstats==0.0.86
+yfinance==1.7.0
+scipy==1.18.1

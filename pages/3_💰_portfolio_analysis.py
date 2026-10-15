@@ -1,9 +1,23 @@
 import streamlit as st
+import numpy as np
 import pandas as pd
 import plotly.express as px
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 from plotly.graph_objs._figure import Figure
+
+from utils.market_data import (
+    BENCHMARK_NAME,
+    MIN_OBSERVATIONS,
+    PERCENT_METRICS,
+    compute_beta,
+    compute_returns,
+    correlation_matrix,
+    fetch_price_history,
+    full_metrics_report,
+    performance_summary,
+    weighted_portfolio_returns,
+)
 
 # Constants
 QUANTITY_COLUMNS = ['Quantity Available', 'Quantity Discrepant', 'Quantity Long Term', 
@@ -16,6 +30,11 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     portfolio = pd.read_excel('./data/holdings-sample.xlsx', header=22, usecols="B:L")
     sectors = pd.read_csv('./data/stock-sector.csv').rename(columns={"NSE code": "Symbol"})
     return portfolio, sectors
+
+@st.cache_data(ttl=3600, show_spinner="Fetching market data…")
+def load_price_history(symbols: Tuple[str, ...], period: str) -> Tuple[pd.DataFrame, Optional[pd.Series]]:
+    """Fetch and cache daily price history for the given symbols."""
+    return fetch_price_history(symbols, period=period)
 
 def process_portfolio(df: pd.DataFrame) -> pd.DataFrame:
     """Process portfolio data efficiently"""
@@ -35,6 +54,119 @@ def create_charts(df: pd.DataFrame, df_with_sectors: pd.DataFrame) -> Tuple[Figu
         fig.update_traces(textposition='inside', textinfo='percent+label')
     
     return symbol_fig, sector_fig
+
+def format_summary(summary: pd.Series) -> pd.Series:
+    """Format a numeric performance summary for display."""
+    formatted: Dict[str, str] = {}
+    for label, value in summary.items():
+        if pd.isna(value):
+            formatted[label] = "–"
+        elif label in PERCENT_METRICS:
+            formatted[label] = f"{value:.2%}"
+        else:
+            formatted[label] = f"{value:.2f}"
+    return pd.Series(formatted, name="Portfolio")
+
+def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
+    """Render correlation, beta and quantstats-based portfolio analytics."""
+    st.markdown("---")
+    st.subheader("📊 Portfolio Analytics")
+    st.caption(
+        f"Daily prices via Yahoo Finance · benchmark {BENCHMARK_NAME} · "
+        "metrics computed on value-weighted daily returns."
+    )
+
+    if not symbols:
+        st.info("Select at least one symbol to see analytics.")
+        return
+
+    period = st.selectbox("Lookback period", ["6mo", "1y", "2y", "5y"], index=1)
+
+    try:
+        prices, benchmark = load_price_history(tuple(sorted(symbols)), period)
+    except Exception as e:  # network / parsing failures should not break the page
+        st.warning(f"Could not fetch market data: {e}")
+        return
+
+    if prices is None or prices.empty:
+        st.info("No market data available for the selected symbols.")
+        return
+
+    missing = sorted(s for s in symbols if s not in prices.columns)
+    if missing:
+        st.caption("⚠️ No market data for: " + ", ".join(missing))
+
+    returns = compute_returns(prices)
+    if returns.empty or len(returns) < MIN_OBSERVATIONS:
+        st.info("Not enough price history to compute reliable analytics.")
+        return
+
+    usable = [c for c in returns.columns if returns[c].notna().sum() >= MIN_OBSERVATIONS]
+    skipped = sorted(c for c in returns.columns if c not in usable)
+    if skipped:
+        st.caption("⚠️ Skipped (insufficient history): " + ", ".join(skipped))
+    if not usable:
+        st.info("No symbol had enough overlapping price history.")
+        return
+
+    returns = returns[usable]
+    weights = filtered_df.groupby("Symbol")["Invested Value"].sum()
+    portfolio_returns = weighted_portfolio_returns(returns, weights)
+
+    corr_tab, risk_tab, tearsheet_tab = st.tabs(
+        ["🔗 Correlation", "🎯 Beta & Risk", "📈 Tearsheet"]
+    )
+
+    with corr_tab:
+        corr = correlation_matrix(returns)
+        fig = px.imshow(
+            corr,
+            text_auto=".2f",
+            zmin=-1,
+            zmax=1,
+            color_continuous_scale="RdBu_r",
+            aspect="auto",
+            template="plotly_white",
+        )
+        fig.update_layout(margin=dict(t=10, b=0, l=0, r=0))
+        st.plotly_chart(fig, width="stretch")
+
+        if len(corr) > 1:
+            upper = np.triu(np.ones(corr.shape), k=1).astype(bool)
+            pairs = corr.where(upper).stack().sort_values(ascending=False)
+            st.caption(
+                "Most correlated pairs: "
+                + ", ".join(f"{a} / {b} ({v:.2f})" for (a, b), v in pairs.head(3).items())
+            )
+
+    with risk_tab:
+        if benchmark is not None and not benchmark.empty:
+            beta = compute_beta(returns, benchmark)
+            if beta.empty:
+                st.info("Not enough overlap with the benchmark to compute beta.")
+            else:
+                st.dataframe(beta.to_frame().style.format("{:.2f}"), width="stretch")
+                st.caption(
+                    f"Beta vs {BENCHMARK_NAME}: above 1 moves more than the index, "
+                    "below 1 moves less."
+                )
+        else:
+            st.info(f"{BENCHMARK_NAME} history unavailable; beta cannot be computed.")
+
+        st.markdown("**Value-weighted portfolio risk / return**")
+        st.dataframe(
+            format_summary(performance_summary(portfolio_returns)).to_frame(),
+            width="stretch",
+        )
+
+    with tearsheet_tab:
+        report = full_metrics_report(portfolio_returns)
+        if report.empty:
+            st.info("Not enough data to build a tearsheet.")
+        else:
+            # quantstats mixes strings and numbers in one column; stringify so
+            # Arrow can serialise it for st.dataframe.
+            st.dataframe(report.astype(str), width="stretch")
 
 def main():
     st.set_page_config("Co-Pilot (Portfolio Management)", "🚀", layout="wide")
@@ -114,7 +246,7 @@ def main():
                 'Current Value': '₹{:,.0f}',
                 'Total Quantity': '{:,.0f}'
             }),
-            use_container_width=True,
+            width="stretch",
             hide_index=True
         )
     
@@ -123,10 +255,13 @@ def main():
     symbol_fig, sector_fig = create_charts(filtered_df, df_with_sectors)
     
     c1.subheader("Investment Distribution")
-    c1.plotly_chart(symbol_fig, use_container_width=True)
+    c1.plotly_chart(symbol_fig, width="stretch")
     
     c2.subheader("Sector Distribution")
-    c2.plotly_chart(sector_fig, use_container_width=True)
+    c2.plotly_chart(sector_fig, width="stretch")
+
+    # Analytics (correlation, beta, quantstats)
+    render_analytics(filtered_df, list(symbols))
 
 if __name__ == "__main__":
     main()

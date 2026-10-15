@@ -1,3 +1,5 @@
 /.streamlit/secrets.toml
 /pages/0_🤖_test.py
 __pycache__
+.venv/
+.pytest_cache/

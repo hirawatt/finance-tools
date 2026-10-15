@@ -37,6 +37,21 @@ FUNDAMENTAL_FIELDS = {
     "marketCap": "Market cap",
 }
 
+# Additional fields used by the red-flag rules.
+RISK_FIELDS = {
+    "debtToEquity": "Debt to equity (%)",
+    "currentRatio": "Current ratio",
+    "profitMargins": "Profit margin",
+    "operatingMargins": "Operating margin",
+    "revenueGrowth": "Revenue growth",
+    "earningsGrowth": "Earnings growth",
+    "freeCashflow": "Free cash flow",
+    "netIncomeToCommon": "Net income",
+}
+
+# Everything pulled from ``yfinance`` in one pass, keyed by the info field.
+COMPANY_FIELDS = {**FUNDAMENTAL_FIELDS, **RISK_FIELDS}
+
 # Metrics surfaced in the headline performance summary. Percentage-style
 # metrics are noted so the UI can format them consistently.
 PERCENT_METRICS = {
@@ -134,16 +149,19 @@ def fetch_price_history(
     return prices, benchmark_series
 
 
-def fetch_fundamentals(symbols: Iterable[str]) -> pd.DataFrame:
-    """Fetch valuation fundamentals (P/E, P/B, EPS, ...) for ``symbols``.
+def fetch_company_data(
+    symbols: Iterable[str], fields: dict = COMPANY_FIELDS
+) -> pd.DataFrame:
+    """Fetch labelled fundamentals for ``symbols`` in a single pass.
 
-    Returns a DataFrame indexed by symbol with one column per entry in
-    :data:`FUNDAMENTAL_FIELDS`. Symbols that fail to resolve are omitted, so a
-    single bad ticker never breaks the whole table.
+    Returns a DataFrame indexed by symbol with one column per display label in
+    ``fields``. Symbols that fail to resolve are omitted, so a single bad ticker
+    never breaks the whole table.
     """
     import yfinance as yf
 
     clean = [s for s in dict.fromkeys(str(s).strip() for s in symbols) if s]
+    labels = list(dict.fromkeys(fields.values()))
     rows = {}
     for symbol in clean:
         try:
@@ -152,13 +170,16 @@ def fetch_fundamentals(symbols: Iterable[str]) -> pd.DataFrame:
             continue
         if not isinstance(info, dict) or not info:
             continue
-        rows[symbol] = {label: info.get(key) for key, label in FUNDAMENTAL_FIELDS.items()}
+        rows[symbol] = {label: info.get(key) for key, label in fields.items()}
 
-    frame = pd.DataFrame.from_dict(
-        rows, orient="index", columns=list(FUNDAMENTAL_FIELDS.values())
-    )
+    frame = pd.DataFrame.from_dict(rows, orient="index", columns=labels)
     frame.index.name = "Symbol"
     return frame
+
+
+def fetch_fundamentals(symbols: Iterable[str]) -> pd.DataFrame:
+    """Valuation fields only (thin wrapper over :func:`fetch_company_data`)."""
+    return fetch_company_data(symbols, FUNDAMENTAL_FIELDS)
 
 
 def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:

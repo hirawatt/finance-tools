@@ -22,6 +22,9 @@ history (Yahoo Finance) for your holdings and the NIFTY 50 benchmark:
 - **Rebalance** — target allocations (equal weight, inverse volatility, risk
   parity) with an optional per-holding cap, shown against your current mix as a
   buy/sell trade list in shares and rupees.
+- **Red Flags** 🚩 — a rule-based screen over reported fundamentals (leverage,
+  earnings, cash flow, margins, valuation), flagging holdings worth a closer
+  look, with a high/medium/low severity.
 - **Tearsheet** — the full [quantstats](https://github.com/ranaroussi/quantstats)
   metrics table (Sharpe, Sortino, Calmar, drawdown, etc.).
 

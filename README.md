@@ -57,7 +57,7 @@ streamlit run app.py
 - [ ] Market Intelligence
   - [ ] Earnings Calendar
   - [ ] Price Forecasting
-  - [ ] Red Flag Detection 🚩
+  - [x] Red Flag Detection 🚩
 
 ## 📊 Portfolio Analysis Flow
 

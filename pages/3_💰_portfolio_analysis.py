@@ -14,18 +14,21 @@ from utils.rebalancing import (
 )
 from utils.market_data import (
     BENCHMARK_NAME,
+    COMPANY_FIELDS,
+    FUNDAMENTAL_FIELDS,
     MIN_OBSERVATIONS,
     PERCENT_METRICS,
     compute_beta,
     compute_returns,
     correlation_matrix,
-    fetch_fundamentals,
+    fetch_company_data,
     fetch_price_history,
     full_metrics_report,
     performance_summary,
     weighted_average_pe,
     weighted_portfolio_returns,
 )
+from utils.red_flags import detect_red_flags, flag_summary
 
 # Constants
 QUANTITY_COLUMNS = ['Quantity Available', 'Quantity Discrepant', 'Quantity Long Term', 
@@ -44,10 +47,10 @@ def load_price_history(symbols: Tuple[str, ...], period: str) -> Tuple[pd.DataFr
     """Fetch and cache daily price history for the given symbols."""
     return fetch_price_history(symbols, period=period)
 
-@st.cache_data(ttl=3600, show_spinner="Fetching valuation data…")
-def load_fundamentals(symbols: Tuple[str, ...]) -> pd.DataFrame:
-    """Fetch and cache valuation fundamentals for the given symbols."""
-    return fetch_fundamentals(symbols)
+@st.cache_data(ttl=3600, show_spinner="Fetching fundamentals…")
+def load_company_data(symbols: Tuple[str, ...]) -> pd.DataFrame:
+    """Fetch and cache fundamentals (valuation + risk) for the given symbols."""
+    return fetch_company_data(symbols, COMPANY_FIELDS)
 
 def process_portfolio(df: pd.DataFrame) -> pd.DataFrame:
     """Process portfolio data efficiently"""
@@ -126,8 +129,21 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
     weights = filtered_df.groupby("Symbol")["Invested Value"].sum()
     portfolio_returns = weighted_portfolio_returns(returns, weights)
 
-    corr_tab, risk_tab, valuation_tab, rebalance_tab, tearsheet_tab = st.tabs(
-        ["🔗 Correlation", "🎯 Beta & Risk", "💹 Valuation", "⚖️ Rebalance", "📈 Tearsheet"]
+    try:
+        company_data = load_company_data(tuple(sorted(usable)))
+    except Exception as e:  # network / parsing failures should not break the page
+        st.warning(f"Could not fetch fundamentals: {e}")
+        company_data = pd.DataFrame()
+
+    corr_tab, risk_tab, valuation_tab, redflag_tab, rebalance_tab, tearsheet_tab = st.tabs(
+        [
+            "🔗 Correlation",
+            "🎯 Beta & Risk",
+            "💹 Valuation",
+            "🚩 Red Flags",
+            "⚖️ Rebalance",
+            "📈 Tearsheet",
+        ]
     )
 
     with corr_tab:
@@ -173,15 +189,10 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
         )
 
     with valuation_tab:
-        try:
-            fundamentals = load_fundamentals(tuple(sorted(usable)))
-        except Exception as e:
-            st.warning(f"Could not fetch valuation data: {e}")
-            fundamentals = pd.DataFrame()
-
-        if fundamentals is None or fundamentals.empty:
+        if company_data is None or company_data.empty:
             st.info("No valuation data available for the selected symbols.")
         else:
+            fundamentals = company_data[list(FUNDAMENTAL_FIELDS.values())]
             pe = fundamentals.get("P/E (trailing)", pd.Series(dtype=float))
             valid_pe = pe[pe > 0]
 
@@ -226,6 +237,29 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
                 )
                 fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
                 st.plotly_chart(fig, width="stretch")
+
+    with redflag_tab:
+        if company_data is None or company_data.empty:
+            st.info("No fundamentals available to screen for red flags.")
+        else:
+            flags = detect_red_flags(company_data)
+            if flags.empty:
+                st.success("✅ No red flags detected in the selected holdings.")
+            else:
+                flagged = flags["Symbol"].nunique()
+                high = flags.loc[flags["Severity"] == "high", "Symbol"].nunique()
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Holdings flagged", f"{flagged} / {len(company_data)}")
+                c2.metric("High severity", high)
+                c3.metric("Total flags", len(flags))
+                st.caption(
+                    "Rule-based screen over reported fundamentals (leverage, earnings, cash "
+                    "flow, margins, valuation) — prompts to investigate, not verdicts."
+                )
+                st.markdown("**Flags per holding**")
+                st.dataframe(flag_summary(flags), width="stretch")
+                st.markdown("**Flag detail**")
+                st.dataframe(flags, width="stretch", hide_index=True)
 
     with rebalance_tab:
         st.caption(

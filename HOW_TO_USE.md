@@ -25,6 +25,8 @@ history (Yahoo Finance) for your holdings and the NIFTY 50 benchmark:
 - **Red Flags** 🚩 — a rule-based screen over reported fundamentals (leverage,
   earnings, cash flow, margins, valuation), flagging holdings worth a closer
   look, with a high/medium/low severity.
+- **Surveillance** 🛡️ — checks your holdings against NSE's ASM and GSM
+  surveillance lists and shows the stage each one sits at.
 - **Tearsheet** — the full [quantstats](https://github.com/ranaroussi/quantstats)
   metrics table (Sharpe, Sortino, Calmar, drawdown, etc.).
 

@@ -51,7 +51,7 @@ streamlit run app.py
   - [x] PE Ratio Analysis
   - [x] Correlation Matrix
 - [ ] Risk Management
-  - [ ] ASM/GSM List Monitoring
+  - [x] ASM/GSM List Monitoring
   - [ ] Default Probability Assessment
   - [x] Automated Rebalancing Suggestions
 - [ ] Market Intelligence

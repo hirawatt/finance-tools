@@ -29,6 +29,7 @@ from utils.market_data import (
     weighted_portfolio_returns,
 )
 from utils.red_flags import detect_red_flags, flag_summary
+from utils.surveillance import check_symbols, fetch_surveillance
 
 # Constants
 QUANTITY_COLUMNS = ['Quantity Available', 'Quantity Discrepant', 'Quantity Long Term', 
@@ -51,6 +52,11 @@ def load_price_history(symbols: Tuple[str, ...], period: str) -> Tuple[pd.DataFr
 def load_company_data(symbols: Tuple[str, ...]) -> pd.DataFrame:
     """Fetch and cache fundamentals (valuation + risk) for the given symbols."""
     return fetch_company_data(symbols, COMPANY_FIELDS)
+
+@st.cache_data(ttl=21600, show_spinner="Fetching NSE surveillance lists…")
+def load_surveillance() -> pd.DataFrame:
+    """Fetch and cache the NSE ASM/GSM surveillance lists (refreshed daily)."""
+    return fetch_surveillance()
 
 def process_portfolio(df: pd.DataFrame) -> pd.DataFrame:
     """Process portfolio data efficiently"""
@@ -135,12 +141,13 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
         st.warning(f"Could not fetch fundamentals: {e}")
         company_data = pd.DataFrame()
 
-    corr_tab, risk_tab, valuation_tab, redflag_tab, rebalance_tab, tearsheet_tab = st.tabs(
+    corr_tab, risk_tab, valuation_tab, redflag_tab, surveillance_tab, rebalance_tab, tearsheet_tab = st.tabs(
         [
             "🔗 Correlation",
             "🎯 Beta & Risk",
             "💹 Valuation",
             "🚩 Red Flags",
+            "🛡️ Surveillance",
             "⚖️ Rebalance",
             "📈 Tearsheet",
         ]
@@ -260,6 +267,37 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
                 st.dataframe(flag_summary(flags), width="stretch")
                 st.markdown("**Flag detail**")
                 st.dataframe(flags, width="stretch", hide_index=True)
+
+    with surveillance_tab:
+        st.caption(
+            "NSE surveillance lists — Additional Surveillance Measure (ASM) and Graded "
+            "Surveillance Measure (GSM). Stocks on these lists carry higher margins and "
+            "position limits."
+        )
+        try:
+            surveillance = load_surveillance()
+        except Exception as e:
+            st.warning(f"Could not fetch NSE surveillance lists: {e}")
+            surveillance = pd.DataFrame()
+
+        if surveillance is None or surveillance.empty:
+            st.info("Surveillance data is unavailable right now.")
+        else:
+            updated = surveillance["Updated"].dropna()
+            if not updated.empty:
+                st.caption(f"Lists as of {updated.iloc[0]}.")
+
+            matched = check_symbols(usable, surveillance)
+            if matched.empty:
+                st.success("✅ None of your holdings are on NSE's ASM/GSM lists.")
+            else:
+                asm = matched[matched["List"].str.startswith("ASM")]
+                gsm = matched[matched["List"] == "GSM"]
+                c1, c2, c3 = st.columns(3)
+                c1.metric("On ASM", asm["Symbol"].nunique())
+                c2.metric("On GSM", gsm["Symbol"].nunique())
+                c3.metric("Holdings on lists", matched["Symbol"].nunique())
+                st.dataframe(matched, width="stretch", hide_index=True)
 
     with rebalance_tab:
         st.caption(

@@ -45,18 +45,18 @@ streamlit run app.py
 ### Portfolio Analyzer
 
 - [x] Integration with [quantstats](https://github.com/ranaroussi/quantstats)
-- [ ] Advanced Portfolio Analytics
+- [x] Advanced Portfolio Analytics
   - [x] Sector & Stock Weightage
   - [x] Portfolio Beta Calculation
   - [x] PE Ratio Analysis
   - [x] Correlation Matrix
-- [ ] Risk Management
+- [x] Risk Management
   - [x] ASM/GSM List Monitoring
-  - [ ] Default Probability Assessment
+  - [x] Default Probability Assessment
   - [x] Automated Rebalancing Suggestions
-- [ ] Market Intelligence
-  - [ ] Earnings Calendar
-  - [ ] Price Forecasting
+- [x] Market Intelligence
+  - [x] Earnings Calendar
+  - [x] Price Forecasting
   - [x] Red Flag Detection 🚩
 
 ## 📊 Portfolio Analysis Flow

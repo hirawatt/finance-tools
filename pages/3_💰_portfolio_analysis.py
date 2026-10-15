@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.express as px
+from datetime import timedelta
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 from plotly.graph_objs._figure import Figure
@@ -12,6 +13,9 @@ from utils.rebalancing import (
     target_weights,
     turnover,
 )
+from utils.default_risk import fetch_default_risk
+from utils.earnings import fetch_earnings_calendar, upcoming
+from utils.forecasting import forecast_paths
 from utils.market_data import (
     BENCHMARK_NAME,
     COMPANY_FIELDS,
@@ -57,6 +61,16 @@ def load_company_data(symbols: Tuple[str, ...]) -> pd.DataFrame:
 def load_surveillance() -> pd.DataFrame:
     """Fetch and cache the NSE ASM/GSM surveillance lists (refreshed daily)."""
     return fetch_surveillance()
+
+@st.cache_data(ttl=21600, show_spinner="Crunching company statements…")
+def load_default_risk(symbols: Tuple[str, ...], market_caps: Dict[str, float]) -> pd.DataFrame:
+    """Fetch statements and compute Altman Z-scores for the given symbols."""
+    return fetch_default_risk(symbols, pd.Series(market_caps))
+
+@st.cache_data(ttl=3600, show_spinner="Fetching earnings calendar…")
+def load_earnings(symbols: Tuple[str, ...]) -> pd.DataFrame:
+    """Fetch and cache upcoming earnings dates for the given symbols."""
+    return fetch_earnings_calendar(symbols)
 
 def process_portfolio(df: pd.DataFrame) -> pd.DataFrame:
     """Process portfolio data efficiently"""
@@ -141,14 +155,30 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
         st.warning(f"Could not fetch fundamentals: {e}")
         company_data = pd.DataFrame()
 
-    corr_tab, risk_tab, valuation_tab, redflag_tab, surveillance_tab, rebalance_tab, tearsheet_tab = st.tabs(
+    market_caps = {}
+    if company_data is not None and not company_data.empty and "Market cap" in company_data:
+        market_caps = company_data["Market cap"].dropna().to_dict()
+
+    try:
+        default_risk = load_default_risk(tuple(sorted(usable)), market_caps)
+    except Exception as e:
+        st.warning(f"Could not assess default risk: {e}")
+        default_risk = pd.DataFrame()
+
+    try:
+        earnings = load_earnings(tuple(sorted(usable)))
+    except Exception as e:
+        st.warning(f"Could not fetch the earnings calendar: {e}")
+        earnings = pd.DataFrame()
+
+    corr_tab, risk_tab, valuation_tab, flags_tab, rebalance_tab, outlook_tab, tearsheet_tab = st.tabs(
         [
             "🔗 Correlation",
             "🎯 Beta & Risk",
             "💹 Valuation",
-            "🚩 Red Flags",
-            "🛡️ Surveillance",
+            "🚩 Risk Flags",
             "⚖️ Rebalance",
+            "🔮 Outlook",
             "📈 Tearsheet",
         ]
     )
@@ -245,13 +275,14 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
                 fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
                 st.plotly_chart(fig, width="stretch")
 
-    with redflag_tab:
+    with flags_tab:
+        st.subheader("Fundamental flags")
         if company_data is None or company_data.empty:
             st.info("No fundamentals available to screen for red flags.")
         else:
             flags = detect_red_flags(company_data)
             if flags.empty:
-                st.success("✅ No red flags detected in the selected holdings.")
+                st.success("✅ No fundamental red flags detected in the selected holdings.")
             else:
                 flagged = flags["Symbol"].nunique()
                 high = flags.loc[flags["Severity"] == "high", "Symbol"].nunique()
@@ -263,17 +294,41 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
                     "Rule-based screen over reported fundamentals (leverage, earnings, cash "
                     "flow, margins, valuation) — prompts to investigate, not verdicts."
                 )
-                st.markdown("**Flags per holding**")
                 st.dataframe(flag_summary(flags), width="stretch")
-                st.markdown("**Flag detail**")
                 st.dataframe(flags, width="stretch", hide_index=True)
 
-    with surveillance_tab:
-        st.caption(
-            "NSE surveillance lists — Additional Surveillance Measure (ASM) and Graded "
-            "Surveillance Measure (GSM). Stocks on these lists carry higher margins and "
-            "position limits."
-        )
+        st.markdown("---")
+        st.subheader("Default risk (Altman Z-score)")
+        scored = pd.DataFrame()
+        if default_risk is not None and not default_risk.empty:
+            scored = default_risk.dropna(subset=["Z-score"])
+        if scored.empty:
+            st.info("Not enough statement data to score the holdings.")
+        else:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Scored", f"{len(scored)} / {len(usable)}")
+            c2.metric("Distress zone", int((scored["Zone"] == "Distress").sum()))
+            c3.metric("Grey zone", int((scored["Zone"] == "Grey").sum()))
+            st.caption(
+                "Altman Z-score — ≥ 2.99 safe, 1.81–2.99 grey, < 1.81 distress. Calibrated "
+                "for non-financial corporates, so read lenders and holding companies with "
+                "care. A screen, not a probability model."
+            )
+            st.dataframe(
+                scored.style.format(
+                    {
+                        "Z-score": "{:.2f}",
+                        "Total assets": "₹{:,.0f}",
+                        "Total liabilities": "₹{:,.0f}",
+                        "EBIT": "₹{:,.0f}",
+                    },
+                    na_rep="–",
+                ),
+                width="stretch",
+            )
+
+        st.markdown("---")
+        st.subheader("Exchange surveillance (ASM/GSM)")
         try:
             surveillance = load_surveillance()
         except Exception as e:
@@ -364,6 +419,70 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
                 width="stretch",
             )
             st.caption("Δ Qty is rounded to whole shares; a negative figure is a sell.")
+
+    with outlook_tab:
+        st.subheader("Upcoming earnings")
+        if earnings is None or earnings.empty:
+            st.info("No upcoming earnings dates available for the selected holdings.")
+        else:
+            horizon_label = st.selectbox(
+                "Show earnings within", ["30 days", "90 days", "6 months"], index=1,
+                key="earnings_horizon",
+            )
+            horizon_days = {"30 days": 30, "90 days": 90, "6 months": 182}[horizon_label]
+            soon = upcoming(earnings, horizon_days)
+            if soon.empty:
+                st.info(f"No earnings expected in the next {horizon_label}.")
+            else:
+                st.dataframe(
+                    soon.style.format(
+                        {"EPS estimate": "{:,.2f}", "Revenue estimate": "₹{:,.0f}"}, na_rep="–"
+                    ),
+                    width="stretch",
+                    hide_index=True,
+                )
+
+        st.markdown("---")
+        st.subheader("Price forecast")
+        st.caption(
+            "Monte Carlo projection of the value-weighted portfolio from its recent daily "
+            "returns — a scenario range, not a prediction."
+        )
+        c1, c2 = st.columns(2)
+        horizon_label = c1.selectbox(
+            "Forecast horizon", ["1 month", "3 months", "6 months"], index=1, key="forecast_horizon"
+        )
+        simulations = c2.slider("Simulations", 200, 5000, 1000, step=200, key="forecast_sims")
+        steps = {"1 month": 21, "3 months": 63, "6 months": 126}[horizon_label]
+
+        start_value = float(filtered_df["Current Value"].sum())
+        projection = forecast_paths(portfolio_returns, start_value, horizon=steps, simulations=simulations)
+        if projection.empty or start_value <= 0:
+            st.info("Not enough return history to build a forecast.")
+        else:
+            last_date = prices.sort_index().index[-1]
+            chart = projection.set_axis(
+                [last_date + timedelta(days=round(step * 7 / 5)) for step in projection.index]
+            )
+            fig = px.line(chart, template="plotly_white")
+            for trace in fig.data:
+                if trace.name == "P50":
+                    trace.update(line=dict(width=3, color="#226216"))
+                else:
+                    trace.update(line=dict(width=1, dash="dot"))
+            fig.update_layout(
+                margin=dict(t=20, b=0, l=0, r=0),
+                xaxis_title="Projected date",
+                yaxis_title="Portfolio value (₹)",
+                legend_title="Percentile",
+            )
+            st.plotly_chart(fig, width="stretch")
+
+            final = projection.iloc[-1]
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Median", f"₹{final['P50']:,.0f}", f"{(final['P50'] / start_value - 1):+.1%}")
+            c2.metric("Pessimistic (P5)", f"₹{final['P5']:,.0f}")
+            c3.metric("Optimistic (P95)", f"₹{final['P95']:,.0f}")
 
     with tearsheet_tab:
         report = full_metrics_report(portfolio_returns)

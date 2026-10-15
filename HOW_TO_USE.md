@@ -10,8 +10,8 @@ graph TD;
 
 ## 📊 Portfolio Analytics
 
-Below the allocation charts, the **Portfolio Analytics** section pulls daily price
-history (Yahoo Finance) for your holdings and the NIFTY 50 benchmark:
+Below the allocation charts, the **Portfolio Analytics** tabs pull data for your
+holdings from Yahoo Finance and NSE:
 
 - **Correlation** — a heatmap of how your holdings move together, plus the most
   correlated pairs, to spot concentration risk.
@@ -19,14 +19,14 @@ history (Yahoo Finance) for your holdings and the NIFTY 50 benchmark:
   risk/return summary for the whole portfolio.
 - **Valuation** — trailing/forward P/E, P/B, EPS and market cap per holding,
   with the portfolio's value-weighted P/E (total value ÷ total earnings).
+- **Risk Flags** 🚩 — a rule-based screen over reported fundamentals (leverage,
+  earnings, cash flow, margins, valuation); Altman Z-score default-risk zones;
+  and NSE ASM/GSM surveillance-list membership.
 - **Rebalance** — target allocations (equal weight, inverse volatility, risk
   parity) with an optional per-holding cap, shown against your current mix as a
   buy/sell trade list in shares and rupees.
-- **Red Flags** 🚩 — a rule-based screen over reported fundamentals (leverage,
-  earnings, cash flow, margins, valuation), flagging holdings worth a closer
-  look, with a high/medium/low severity.
-- **Surveillance** 🛡️ — checks your holdings against NSE's ASM and GSM
-  surveillance lists and shows the stage each one sits at.
+- **Outlook** 🔮 — upcoming earnings dates and a Monte Carlo projection of the
+  portfolio value (a scenario range, not a prediction).
 - **Tearsheet** — the full [quantstats](https://github.com/ranaroussi/quantstats)
   metrics table (Sharpe, Sortino, Calmar, drawdown, etc.).
 

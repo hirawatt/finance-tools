@@ -26,6 +26,17 @@ BENCHMARK_NAME = "NIFTY 50"
 # Minimum overlapping daily observations before we trust a beta/statistic.
 MIN_OBSERVATIONS = 20
 
+# Fundamental fields pulled per symbol for the valuation view, mapped from the
+# Yahoo Finance ``info`` keys to display labels.
+FUNDAMENTAL_FIELDS = {
+    "trailingPE": "P/E (trailing)",
+    "forwardPE": "P/E (forward)",
+    "priceToBook": "P/B",
+    "trailingEps": "EPS (trailing)",
+    "dividendYield": "Dividend yield (%)",
+    "marketCap": "Market cap",
+}
+
 # Metrics surfaced in the headline performance summary. Percentage-style
 # metrics are noted so the UI can format them consistently.
 PERCENT_METRICS = {
@@ -123,6 +134,33 @@ def fetch_price_history(
     return prices, benchmark_series
 
 
+def fetch_fundamentals(symbols: Iterable[str]) -> pd.DataFrame:
+    """Fetch valuation fundamentals (P/E, P/B, EPS, ...) for ``symbols``.
+
+    Returns a DataFrame indexed by symbol with one column per entry in
+    :data:`FUNDAMENTAL_FIELDS`. Symbols that fail to resolve are omitted, so a
+    single bad ticker never breaks the whole table.
+    """
+    import yfinance as yf
+
+    clean = [s for s in dict.fromkeys(str(s).strip() for s in symbols) if s]
+    rows = {}
+    for symbol in clean:
+        try:
+            info = yf.Ticker(to_ticker(symbol)).info
+        except Exception:
+            continue
+        if not isinstance(info, dict) or not info:
+            continue
+        rows[symbol] = {label: info.get(key) for key, label in FUNDAMENTAL_FIELDS.items()}
+
+    frame = pd.DataFrame.from_dict(
+        rows, orient="index", columns=list(FUNDAMENTAL_FIELDS.values())
+    )
+    frame.index.name = "Symbol"
+    return frame
+
+
 def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:
     """Daily simple returns from a price frame (one column per symbol)."""
     if prices is None or prices.empty:
@@ -180,6 +218,27 @@ def weighted_portfolio_returns(returns: pd.DataFrame, weights: pd.Series) -> pd.
 
     normalised = aligned / total
     return returns.mul(normalised, axis="columns").sum(axis="columns")
+
+
+def weighted_average_pe(pe: pd.Series, weights: pd.Series) -> Optional[float]:
+    """Value-weighted portfolio P/E.
+
+    The aggregate P/E of a portfolio is total value divided by total earnings,
+    which is the value-weighted *harmonic* mean of the individual P/Es (not the
+    arithmetic mean). Holdings with a non-positive P/E (loss-making) are
+    excluded. Returns ``None`` when no usable P/E is available.
+    """
+    if pe is None or pe.empty or weights is None or weights.empty:
+        return None
+
+    joined = pd.concat([pe.rename("pe"), weights.rename("weight")], axis=1).dropna()
+    joined = joined[joined["pe"] > 0]
+    total = joined["weight"].sum()
+    if joined.empty or total == 0:
+        return None
+
+    normalised = joined["weight"] / total
+    return float(1.0 / (normalised / joined["pe"]).sum())
 
 
 def performance_summary(returns: pd.Series) -> pd.Series:

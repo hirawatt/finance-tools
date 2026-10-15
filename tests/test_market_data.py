@@ -14,10 +14,12 @@ from utils.market_data import (
     compute_beta,
     compute_returns,
     correlation_matrix,
+    fetch_fundamentals,
     fetch_price_history,
     full_metrics_report,
     performance_summary,
     to_ticker,
+    weighted_average_pe,
     weighted_portfolio_returns,
 )
 
@@ -142,6 +144,37 @@ class TestPerformanceSummary(unittest.TestCase):
         report = full_metrics_report(_sample_returns()["AAA"])
         self.assertFalse(report.empty)
         self.assertIn("Sharpe", report.index)
+
+
+class TestWeightedAveragePE(unittest.TestCase):
+    def test_uses_harmonic_mean_not_arithmetic(self):
+        # Equal weights: 1 / (0.5/10 + 0.5/20) = 13.33... (not the 15 arithmetic mean)
+        pe = pd.Series({"A": 10.0, "B": 20.0})
+        weights = pd.Series({"A": 1.0, "B": 1.0})
+        self.assertAlmostEqual(weighted_average_pe(pe, weights), 13.333333, places=4)
+
+    def test_respects_value_weights(self):
+        pe = pd.Series({"A": 10.0, "B": 20.0})
+        weights = pd.Series({"A": 3.0, "B": 1.0})
+        self.assertAlmostEqual(weighted_average_pe(pe, weights), 11.428571, places=4)
+
+    def test_excludes_non_positive_pe(self):
+        pe = pd.Series({"A": 10.0, "B": -5.0, "C": 20.0})
+        weights = pd.Series({"A": 1.0, "B": 1.0, "C": 1.0})
+        self.assertAlmostEqual(weighted_average_pe(pe, weights), 13.333333, places=4)
+
+    def test_returns_none_without_usable_data(self):
+        self.assertIsNone(weighted_average_pe(pd.Series(dtype=float), pd.Series(dtype=float)))
+        self.assertIsNone(
+            weighted_average_pe(pd.Series({"A": -3.0}), pd.Series({"A": 1.0}))
+        )
+
+
+class TestFetchFundamentals(unittest.TestCase):
+    def test_empty_symbols(self):
+        frame = fetch_fundamentals([])
+        self.assertTrue(frame.empty)
+        self.assertEqual(frame.index.name, "Symbol")
 
 
 class TestFetchPriceHistory(unittest.TestCase):

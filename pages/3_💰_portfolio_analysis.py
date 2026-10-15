@@ -13,9 +13,11 @@ from utils.market_data import (
     compute_beta,
     compute_returns,
     correlation_matrix,
+    fetch_fundamentals,
     fetch_price_history,
     full_metrics_report,
     performance_summary,
+    weighted_average_pe,
     weighted_portfolio_returns,
 )
 
@@ -35,6 +37,11 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
 def load_price_history(symbols: Tuple[str, ...], period: str) -> Tuple[pd.DataFrame, Optional[pd.Series]]:
     """Fetch and cache daily price history for the given symbols."""
     return fetch_price_history(symbols, period=period)
+
+@st.cache_data(ttl=3600, show_spinner="Fetching valuation data…")
+def load_fundamentals(symbols: Tuple[str, ...]) -> pd.DataFrame:
+    """Fetch and cache valuation fundamentals for the given symbols."""
+    return fetch_fundamentals(symbols)
 
 def process_portfolio(df: pd.DataFrame) -> pd.DataFrame:
     """Process portfolio data efficiently"""
@@ -113,8 +120,8 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
     weights = filtered_df.groupby("Symbol")["Invested Value"].sum()
     portfolio_returns = weighted_portfolio_returns(returns, weights)
 
-    corr_tab, risk_tab, tearsheet_tab = st.tabs(
-        ["🔗 Correlation", "🎯 Beta & Risk", "📈 Tearsheet"]
+    corr_tab, risk_tab, valuation_tab, tearsheet_tab = st.tabs(
+        ["🔗 Correlation", "🎯 Beta & Risk", "💹 Valuation", "📈 Tearsheet"]
     )
 
     with corr_tab:
@@ -158,6 +165,61 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
             format_summary(performance_summary(portfolio_returns)).to_frame(),
             width="stretch",
         )
+
+    with valuation_tab:
+        try:
+            fundamentals = load_fundamentals(tuple(sorted(usable)))
+        except Exception as e:
+            st.warning(f"Could not fetch valuation data: {e}")
+            fundamentals = pd.DataFrame()
+
+        if fundamentals is None or fundamentals.empty:
+            st.info("No valuation data available for the selected symbols.")
+        else:
+            pe = fundamentals.get("P/E (trailing)", pd.Series(dtype=float))
+            valid_pe = pe[pe > 0]
+
+            c1, c2, c3 = st.columns(3)
+            portfolio_pe = weighted_average_pe(pe, weights)
+            c1.metric("Portfolio P/E (weighted)", f"{portfolio_pe:.1f}" if portfolio_pe else "–")
+            c2.metric("Median holding P/E", f"{valid_pe.median():.1f}" if not valid_pe.empty else "–")
+            c3.metric("Holdings with P/E", f"{len(valid_pe)} / {len(pe)}")
+            st.caption(
+                "Portfolio P/E is the value-weighted harmonic mean (total value ÷ total "
+                "earnings); loss-making holdings with no positive P/E are excluded."
+            )
+
+            table = fundamentals.copy()
+            if weights.sum() > 0:
+                table.insert(0, "Weight %", weights.reindex(table.index) / weights.sum() * 100)
+            st.dataframe(
+                table.style.format(
+                    {
+                        "Weight %": "{:.1f}%",
+                        "P/E (trailing)": "{:.1f}",
+                        "P/E (forward)": "{:.1f}",
+                        "P/B": "{:.2f}",
+                        "EPS (trailing)": "₹{:,.2f}",
+                        "Dividend yield (%)": "{:.2f}",
+                        "Market cap": "₹{:,.0f}",
+                    },
+                    na_rep="–",
+                ),
+                width="stretch",
+            )
+
+            chart_df = fundamentals.reset_index()
+            chart_df = chart_df[chart_df["P/E (trailing)"].notna()]
+            if not chart_df.empty:
+                fig = px.bar(
+                    chart_df,
+                    x="Symbol",
+                    y="P/E (trailing)",
+                    template="plotly_white",
+                    title="Trailing P/E by holding",
+                )
+                fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
+                st.plotly_chart(fig, width="stretch")
 
     with tearsheet_tab:
         report = full_metrics_report(portfolio_returns)

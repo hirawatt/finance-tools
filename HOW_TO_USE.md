@@ -17,6 +17,8 @@ history (Yahoo Finance) for your holdings and the NIFTY 50 benchmark:
   correlated pairs, to spot concentration risk.
 - **Beta & Risk** — each holding's beta versus NIFTY 50, with a value-weighted
   risk/return summary for the whole portfolio.
+- **Valuation** — trailing/forward P/E, P/B, EPS and market cap per holding,
+  with the portfolio's value-weighted P/E (total value ÷ total earnings).
 - **Tearsheet** — the full [quantstats](https://github.com/ranaroussi/quantstats)
   metrics table (Sharpe, Sortino, Calmar, drawdown, etc.).
 

@@ -48,7 +48,7 @@ streamlit run app.py
 - [ ] Advanced Portfolio Analytics
   - [x] Sector & Stock Weightage
   - [x] Portfolio Beta Calculation
-  - [ ] PE Ratio Analysis
+  - [x] PE Ratio Analysis
   - [x] Correlation Matrix
 - [ ] Risk Management
   - [ ] ASM/GSM List Monitoring

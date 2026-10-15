@@ -1,0 +1,58 @@
+name: Nightly market-data snapshot
+
+on:
+  schedule:
+    # 19:30 UTC = 01:00 IST, after NSE has closed and Yahoo has settled its EOD data.
+    - cron: "30 19 * * *"
+  workflow_dispatch:
+    inputs:
+      period:
+        description: Price history window to snapshot
+        default: 5y
+      limit:
+        description: Snapshot only the first N symbols (smoke run); blank for all
+        default: ""
+
+concurrency:
+  group: nightly-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: Build and publish snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SNAPSHOT_BUCKET: ${{ secrets.SNAPSHOT_BUCKET }}
+      SNAPSHOT_PREFIX: ${{ secrets.SNAPSHOT_PREFIX }}
+      SNAPSHOT_ENDPOINT_URL: ${{ secrets.SNAPSHOT_ENDPOINT_URL }}
+      SNAPSHOT_REGION: ${{ secrets.SNAPSHOT_REGION }}
+      SNAPSHOT_ACCESS_KEY: ${{ secrets.SNAPSHOT_ACCESS_KEY }}
+      SNAPSHOT_SECRET_KEY: ${{ secrets.SNAPSHOT_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require snapshot storage to be configured
+        run: |
+          if [ -z "${SNAPSHOT_BUCKET}" ]; then
+            echo "::error::SNAPSHOT_BUCKET is not set. Add the SNAPSHOT_* repository secrets."
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build snapshot
+        run: |
+          args=(--period "${{ inputs.period || '5y' }}")
+          if [ -n "${LIMIT}" ]; then
+            args+=(--limit "${LIMIT}")
+          fi
+          python scripts/build_snapshot.py "${args[@]}"
+        env:
+          LIMIT: ${{ inputs.limit }}

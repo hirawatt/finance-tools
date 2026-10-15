@@ -10,3 +10,6 @@ pyarrow==26.0.0 # Required by streamlit
 quantstats==0.0.86
 yfinance==1.7.0
 scipy==1.18.1
+# Object storage for the nightly market-data snapshot (utils/snapshot.py).
+# Any S3-compatible endpoint works: AWS S3, Cloudflare R2, MinIO, Backblaze B2.
+boto3==1.43.114

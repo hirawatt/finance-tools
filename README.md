@@ -59,6 +59,10 @@ streamlit run app.py
   - [x] Price Forecasting
   - [x] Red Flag Detection 🚩
 
+### Platform
+
+- [x] Nightly market-data snapshot on S3-compatible storage
+
 ## 📊 Portfolio Analysis Flow
 
 ```mermaid
@@ -68,6 +72,37 @@ graph TD;
     C --> F(Rebalance) & G(Reduce Risk) & H(Maximize Returns)
     G & H --> I(Sharpe Ratio & Treynor Ratio Comparison)
 ```
+
+## 🗓️ Nightly Market-Data Snapshot
+
+The Co-Pilot's analytics would otherwise fetch every holding from Yahoo and NSE
+on each cold load — roughly 60 upstream requests for a 15-stock portfolio. A
+scheduled job instead fetches the curated universe once a night and publishes
+Parquet files plus a manifest to S3-compatible storage; the app reads that
+snapshot, and only falls back to a live fetch for symbols it does not cover
+(so an arbitrary uploaded portfolio still works).
+
+**Build it locally:**
+
+```bash
+.venv/bin/python scripts/build_snapshot.py --local ./snapshots   # local directory
+.venv/bin/python scripts/build_snapshot.py --limit 5             # smoke run
+```
+
+With no `SNAPSHOT_*` configuration the snapshot is written to `./snapshots`
+(git-ignored) and the app reads it when run on the same machine.
+
+**Configure object storage** — any S3-compatible endpoint (AWS S3, Cloudflare
+R2, MinIO, Backblaze B2). For the app, add a `[snapshot]` table to
+`.streamlit/secrets.toml` (see `.streamlit/example.secrets.toml`); for the
+nightly job, add the same values as repository secrets named `SNAPSHOT_BUCKET`,
+`SNAPSHOT_PREFIX`, `SNAPSHOT_ENDPOINT_URL`, `SNAPSHOT_REGION`,
+`SNAPSHOT_ACCESS_KEY` and `SNAPSHOT_SECRET_KEY`.
+
+[`.github/workflows/nightly-snapshot.yml`](.github/workflows/nightly-snapshot.yml)
+runs the job nightly at 01:00 IST (and on demand). The universe is every
+watchlist in `indices/` plus the sample portfolio — currently ~220 symbols;
+edit `utils/snapshot.py::build_universe` to widen it.
 
 ## 🤝 Contributing
 

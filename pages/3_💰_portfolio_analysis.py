@@ -7,14 +7,14 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 from plotly.graph_objs._figure import Figure
 
+from utils import snapshot
 from utils.rebalancing import (
     STRATEGIES,
     rebalancing_plan,
     target_weights,
     turnover,
 )
-from utils.default_risk import fetch_default_risk
-from utils.earnings import fetch_earnings_calendar, upcoming
+from utils.earnings import upcoming
 from utils.forecasting import forecast_paths
 from utils.market_data import (
     BENCHMARK_NAME,
@@ -25,15 +25,13 @@ from utils.market_data import (
     compute_beta,
     compute_returns,
     correlation_matrix,
-    fetch_company_data,
-    fetch_price_history,
     full_metrics_report,
     performance_summary,
     weighted_average_pe,
     weighted_portfolio_returns,
 )
 from utils.red_flags import detect_red_flags, flag_summary
-from utils.surveillance import check_symbols, fetch_surveillance
+from utils.surveillance import check_symbols
 
 # Constants
 QUANTITY_COLUMNS = ['Quantity Available', 'Quantity Discrepant', 'Quantity Long Term', 
@@ -60,30 +58,46 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     sectors = pd.read_csv('./data/stock-sector.csv').rename(columns={"NSE code": "Symbol"})
     return portfolio, sectors
 
+@st.cache_resource(show_spinner=False)
+def snapshot_store():
+    """Object storage holding the nightly market-data snapshot.
+
+    Configured from the ``[snapshot]`` secrets table (or ``SNAPSHOT_*`` env
+    vars), and degrading to a local directory when nothing is configured, in
+    which case every loader simply falls back to live fetches.
+    """
+    try:
+        secrets = st.secrets.to_dict()
+    except Exception:  # no secrets file, or running outside Streamlit
+        secrets = {}
+    return snapshot.SnapshotConfig.from_secrets(secrets).store()
+
 @st.cache_data(ttl=3600, show_spinner="Fetching market data…")
 def load_price_history(symbols: Tuple[str, ...], period: str) -> Tuple[pd.DataFrame, Optional[pd.Series]]:
-    """Fetch and cache daily price history for the given symbols."""
-    return fetch_price_history(symbols, period=period)
+    """Daily price history, served from the nightly snapshot where possible."""
+    return snapshot.load_prices(symbols, period=period, store=snapshot_store())
 
 @st.cache_data(ttl=3600, show_spinner="Fetching fundamentals…")
 def load_company_data(symbols: Tuple[str, ...]) -> pd.DataFrame:
-    """Fetch and cache fundamentals (valuation + risk) for the given symbols."""
-    return fetch_company_data(symbols, COMPANY_FIELDS)
+    """Fundamentals (valuation + risk), served from the snapshot where possible."""
+    return snapshot.load_company_data(symbols, COMPANY_FIELDS, store=snapshot_store())
 
 @st.cache_data(ttl=21600, show_spinner="Fetching NSE surveillance lists…")
 def load_surveillance() -> pd.DataFrame:
-    """Fetch and cache the NSE ASM/GSM surveillance lists (refreshed daily)."""
-    return fetch_surveillance()
+    """NSE ASM/GSM surveillance lists (refreshed daily)."""
+    return snapshot.load_surveillance(store=snapshot_store())
 
 @st.cache_data(ttl=21600, show_spinner="Crunching company statements…")
 def load_default_risk(symbols: Tuple[str, ...], market_caps: Dict[str, float]) -> pd.DataFrame:
-    """Fetch statements and compute Altman Z-scores for the given symbols."""
-    return fetch_default_risk(symbols, pd.Series(market_caps))
+    """Altman Z-scores for the given symbols, snapshot-first."""
+    return snapshot.load_default_risk(
+        symbols, pd.Series(market_caps), store=snapshot_store()
+    )
 
 @st.cache_data(ttl=3600, show_spinner="Fetching earnings calendar…")
 def load_earnings(symbols: Tuple[str, ...]) -> pd.DataFrame:
-    """Fetch and cache upcoming earnings dates for the given symbols."""
-    return fetch_earnings_calendar(symbols)
+    """Upcoming earnings dates for the given symbols, snapshot-first."""
+    return snapshot.load_earnings(symbols, store=snapshot_store())
 
 def process_portfolio(df: pd.DataFrame) -> pd.DataFrame:
     """Process portfolio data efficiently"""

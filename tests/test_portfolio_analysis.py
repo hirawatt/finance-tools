@@ -15,6 +15,20 @@ class MockPackage(MagicMock):
 _MISSING = object()
 _pre_existing_modules = set(sys.modules)
 
+
+def _forget_parent_attribute(name: str, module) -> None:
+    """Drop a submodule's attribute from its parent package.
+
+    Removing an entry from ``sys.modules`` is not enough: importing a submodule
+    also binds it as an attribute of its parent, and ``from utils import x``
+    resolves that attribute before it consults ``sys.modules``. Without this the
+    next test module would receive the stale, mock-backed module.
+    """
+    parent_name, _, child = name.rpartition(".")
+    parent = sys.modules.get(parent_name)
+    if parent is not None and getattr(parent, child, None) is module:
+        delattr(parent, child)
+
 # The page imports pandas/streamlit/plotly at import time. Stub them only while
 # the module is being loaded, then restore whatever was there before so the real
 # packages stay untouched for other tests in the same process.
@@ -35,10 +49,11 @@ try:
     sys.modules["portfolio_analysis"] = portfolio_analysis
     spec.loader.exec_module(portfolio_analysis)
 finally:
-    # Drop any module imported while pandas was stubbed (e.g. utils.market_data),
-    # so nothing caches a mock reference for later test modules.
+    # Drop any module imported while pandas was stubbed (e.g. utils.snapshot),
+    # so nothing caches a mock reference for later test modules. Both the
+    # sys.modules entry and the parent-package attribute have to go.
     for name in set(sys.modules) - _pre_existing_modules:
-        sys.modules.pop(name, None)
+        _forget_parent_attribute(name, sys.modules.pop(name, None))
     for name, original in _saved_modules.items():
         if original is _MISSING:
             sys.modules.pop(name, None)

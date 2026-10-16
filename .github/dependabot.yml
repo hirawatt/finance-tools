@@ -1,11 +1,40 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-
 version: 2
+
 updates:
-  - package-ecosystem: "" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  # Python dependencies. Dependabot's native uv ecosystem understands
+  # pyproject.toml + uv.lock, so bumps land as a paired change.
+  - package-ecosystem: "uv"
+    directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 5
+    groups:
+      deps:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    labels: ["dependencies"]
+
+  # Workflow actions: astral-sh/setup-uv, actions/checkout.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+    labels: ["dependencies"]
+
+# requirements.txt is deliberately absent: it is generated from uv.lock with
+# `uv export` for Streamlit Community Cloud, and the CI workflow fails if it
+# drifts from the lock, so it is regenerated as part of any dependency bump.

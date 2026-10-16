@@ -43,6 +43,9 @@ uv run pytest -q
   every other test module running in the same process.
 - `streamlit.testing.v1.AppTest` resolves relative paths against the file that
   calls `from_file`, so pass an absolute path.
+- CI runs this suite plus a check that `requirements.txt` matches `uv.lock`
+  (`.github/workflows/ci.yml`), so regenerate it in the same commit as any
+  dependency change.
 
 ## Conventions
 

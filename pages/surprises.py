@@ -1,7 +1,13 @@
 import streamlit as st
 
+
 def main():
-    st.subheader("Surprises")
+    st.title("🚦 Due Diligence")
+    st.caption(
+        "Surfaces worth a closer look before you trade — unusual pricing and "
+        "volume that can signal either an opportunity or a trap."
+    )
+
     c1, c2, c3, c4 = st.columns(4)
     c1.subheader("Options Pricing Mismatch")
     c2.subheader("Unusual Moves in Pairs")

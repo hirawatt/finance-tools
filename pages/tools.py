@@ -1,82 +1,44 @@
+"""Everyday trading calculators."""
+
 import streamlit as st
 
-tab1, tab2 = st.tabs(["Percentage Up Down Calc", "News Sentiment"])
+# Percentage steps offered as preset buttons, in display order.
+STEPS = (5.0, 3.0, 2.0, -2.0, -3.0, -5.0)
 
-with tab1:
-    c1, c2, c3 = st.columns(3)
-    # Pre-Defined Percentage Changes
-    p5 = c1.button('+5%', key='p5')
-    p3 = c1.button('+3%', key='p3')
-    p2 = c1.button('+2%', key='p2')
-    m5 = c2.button('-5%', key='m5')
-    m3 = c2.button('-3%', key='m3')
-    m2 = c2.button('-2%', key='m2')
-    # Custom Percentage Changes
-    pct = c3.number_input('Custom Percentage Change', value=0.0, step=0.01, key='pct')
 
-    def pct_change(number: float) -> float:
-        """Calculate the percentage change of a number
+def apply_change(value: float, percent: float) -> float:
+    """Return ``value`` moved by ``percent`` percent."""
+    return value * (1 + percent / 100)
 
-        Args:
-            number (float): The number to calculate the percentage change of
 
-        Returns:
-            float: The percentage change of the number
-        """
-        if p5:
-            number = number*1.05
-        elif p3:
-            number = number*1.03
-        elif p2:
-            number = number*1.02
-        elif m5:
-            number = number*0.95
-        elif m3:
-            number = number*0.97
-        elif m2:
-            number = number*0.98
-        else:
-            number = number*(1+pct/100)
-        return number
+def set_percent(percent: float) -> None:
+    """Button callback: write the chosen percentage into the input widget."""
+    st.session_state.pct = percent
+
 
 def main() -> None:
-    with tab1:
-        st.subheader("Percentage Up/Down")
+    st.title("🧮 Tools")
+    st.caption("Quick calculators for everyday trading maths.")
 
-        # Set Session state with Input Number
-        if 'key' not in st.session_state:
-            number = st.number_input("Enter a number:", value=100)
-            st.session_state.key = number
+    st.subheader("Percentage up/down")
+    st.caption("Enter a value and a percentage move to see the resulting value.")
 
-        c1, c2 = st.columns(2)
-        # Set Session state to store Original Input Number
-        if 'number' not in st.session_state:
-            st.session_state.number = st.session_state.key
-        c1.metric("Starting number:", st.session_state.number)
-        number = st.session_state.key
-        st.session_state.key = pct_change(number)
-        net_change = (st.session_state.number - st.session_state.key)/st.session_state.number * 100
-        c2.metric("The net change is:", round(st.session_state.key, 2), delta=round(net_change, 2))
+    c1, c2 = st.columns(2)
+    value = c1.number_input("Value", value=100.0, step=1.0)
+    if "pct" not in st.session_state:
+        st.session_state.pct = 0.0
+    percent = c2.number_input("Percentage change (%)", step=0.5, key="pct")
 
-#     with tab2:
-#         st.subheader("News Sentiment Analysis")
-#         a1, a2 = st.columns(2)
-#         input = a1.text_input(
-#             "Enter News Headline",
-#             value="Housing demand momentum to continue despite rising prices and interest rates: CRISIL",
-#         )
-#         output = news_sentiment(input)
-#         a2.metric("Sentiment", value=output[0]["label"], delta=output[0]["score"])
+    col1, col2 = st.columns(2)
+    for column, percents in ((col1, STEPS[:3]), (col2, STEPS[3:])):
+        for preset in percents:
+            column.button(f"{preset:+g}%", on_click=set_percent, args=(preset,))
 
-# import transformers as tfmr
+    result = apply_change(value, percent)
+    r1, r2 = st.columns(2)
+    r1.metric("New value", f"{result:,.2f}")
+    r2.metric("Change", f"{result - value:+,.2f}")
 
-# @st.cache_resource
-# def news_sentiment(input: str) -> list:
-#     # Allocate a pipeline for sentiment-analysis
-#     classifier = tfmr.pipeline("sentiment-analysis")
-#     output = classifier(input)
-#     return output
-    
 
 if __name__ == "__main__":
     main()

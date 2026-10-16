@@ -34,16 +34,25 @@ def load_info() -> pd.DataFrame:
 def home() -> None:
     """Landing page: the featured tools and the dataset guide."""
     st.write("# Welcome to The Trading Dashboard")
+    st.caption(
+        "Capital-markets analysis for Indian portfolios, watchlists and trade ideas."
+    )
 
-    st.page_link("pages/portfolio_analysis.py", label="🚀 Co-Pilot", width="stretch")
-    st.page_link("pages/stocks_to_trade.py", label="💡 Idea Generation", width="stretch")
-    st.page_link("pages/surprises.py", label="🚦 Due Diligence", width="stretch")
-    st.markdown("---")  # Add a separator
+    st.subheader("Featured tools")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.page_link("pages/portfolio_analysis.py", label="🚀 Co-Pilot", width="stretch")
+        st.caption("Analyse, optimise and rebalance your portfolio.")
+    with c2:
+        st.page_link("pages/stocks_to_trade.py", label="💡 Idea Generation", width="stretch")
+        st.caption("Screen the market for trade candidates.")
+    with c3:
+        st.page_link("pages/surprises.py", label="🚦 Due Diligence", width="stretch")
+        st.caption("Spot unusual activity before you commit.")
 
-    info = load_info()
-    # st.dataframe(info)
-
-    st.write(Path("DATA.md").read_text())
+    with st.expander("🗂️ Data guide"):
+        st.dataframe(load_info(), width="stretch", hide_index=True)
+        st.write(Path("DATA.md").read_text())
 
 
 # url_path is intentionally left unset on the file pages: Streamlit derives it

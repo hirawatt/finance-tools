@@ -1,11 +1,5 @@
 import streamlit as st
 
-st.set_page_config(
-    "Tools",
-    "🕴️",
-    initial_sidebar_state="expanded",
-    layout="wide",
-)
 tab1, tab2 = st.tabs(["Percentage Up Down Calc", "News Sentiment"])
 
 with tab1:

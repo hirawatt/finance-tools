@@ -1,8 +1,17 @@
-import streamlit as st
-import pandas as pd
+"""The Trading Dashboard by Hirawat — Streamlit entrypoint.
+
+The available pages are registered explicitly with :func:`st.navigation` and
+:func:`st.Page` (rather than relying on the ``pages/`` directory's filename
+convention), so each page's title, icon and order live in one place here. The
+entrypoint is also the home page; page files under ``pages/`` must not call
+``st.set_page_config`` (it may only run once per app).
+"""
+
 from pathlib import Path
 
-# streamlit
+import pandas as pd
+import streamlit as st
+
 st.set_page_config(
     'The Trading Dashboard by Hirawat',
     '🕴️',
@@ -15,25 +24,45 @@ st.set_page_config(
     },
 )
 
+
 @st.cache_data
 def load_info() -> pd.DataFrame:
     """Load the dataset guide. Cached so the CSV is parsed once per process."""
     return pd.read_csv('./data/info.csv')
 
 
-def main() -> None:
+def home() -> None:
+    """Landing page: the featured tools and the dataset guide."""
     st.write("# Welcome to The Trading Dashboard")
 
-    st.page_link("pages/3_💰_portfolio_analysis.py", label="🚀 Co-Pilot", width="stretch")
-    st.page_link("pages/1_📈_stocks_to_trade.py", label="💡 Idea Generation", width="stretch")
-    st.page_link("pages/4_🤯_surprises.py", label="🚦 Due Diligence", width="stretch")
-    st.markdown("---") # Add a separator
+    st.page_link("pages/portfolio_analysis.py", label="🚀 Co-Pilot", width="stretch")
+    st.page_link("pages/stocks_to_trade.py", label="💡 Idea Generation", width="stretch")
+    st.page_link("pages/surprises.py", label="🚦 Due Diligence", width="stretch")
+    st.markdown("---")  # Add a separator
 
     info = load_info()
-    #st.dataframe(info)
+    # st.dataframe(info)
 
     st.write(Path("DATA.md").read_text())
 
-    
+
+# url_path is intentionally left unset on the file pages: Streamlit derives it
+# from the filename, which keeps deep links stable across restarts.
+PAGES = [
+    st.Page(home, title="Home", icon="🕴️", default=True),
+    st.Page("pages/portfolio_analysis.py", title="Co-Pilot", icon="🚀"),
+    st.Page("pages/stocks_to_trade.py", title="Idea Generation", icon="💡"),
+    st.Page("pages/surprises.py", title="Due Diligence", icon="🚦"),
+    st.Page("pages/index_creator.py", title="Index Creator", icon="🍀"),
+    st.Page("pages/stock_search.py", title="Stock Search", icon="❄️"),
+    st.Page("pages/tools.py", title="Tools", icon="💸"),
+    st.Page("pages/about.py", title="About", icon="🕴️"),
+]
+
+
+def main() -> None:
+    st.navigation(PAGES).run()
+
+
 if __name__ == "__main__":
     main()

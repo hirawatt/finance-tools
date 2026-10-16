@@ -15,7 +15,7 @@ _saved_modules = {name: sys.modules.get(name, _MISSING) for name in _overrides}
 
 sys.modules.update(_overrides)
 try:
-    spec = importlib.util.spec_from_file_location("index_creator", "pages/2_🍀_index_creator.py")
+    spec = importlib.util.spec_from_file_location("index_creator", "pages/index_creator.py")
     index_creator = importlib.util.module_from_spec(spec)
     sys.modules["index_creator"] = index_creator
     spec.loader.exec_module(index_creator)

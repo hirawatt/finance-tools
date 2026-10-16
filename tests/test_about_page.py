@@ -9,11 +9,11 @@ from pathlib import Path
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
-import pages.About as about
+import pages.about as about
 
 # AppTest resolves relative paths against the file that calls it, so we pass an
 # absolute path (see AGENTS.md).
-ABOUT_PATH = Path(__file__).resolve().parent.parent / "pages" / "About.py"
+ABOUT_PATH = Path(__file__).resolve().parent.parent / "pages" / "about.py"
 
 
 def test_about_page_renders_without_secrets():

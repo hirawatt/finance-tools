@@ -52,6 +52,9 @@ uv run pytest -q
 
 - Keep analytics logic in `utils/` as pure functions over pandas objects so it
   stays testable; keep Streamlit and network concerns in `pages/`.
+- Register pages in `main.py` with `st.navigation` / `st.Page` (titles, icons
+  and order live there); page modules use plain `snake_case` filenames and must
+  not call `st.set_page_config`, which the entrypoint owns.
 - Cache network/Streamlit calls with `@st.cache_data`.
 - Dependencies are declared in `pyproject.toml` and locked in `uv.lock`; change
   them with `uv add` / `uv remove` (or by editing `pyproject.toml` plus

@@ -44,7 +44,7 @@ _saved_modules = {name: sys.modules.get(name, _MISSING) for name in _OVERRIDES}
 
 sys.modules.update(_OVERRIDES)
 try:
-    spec = spec_from_file_location("portfolio_analysis", "pages/3_💰_portfolio_analysis.py")
+    spec = spec_from_file_location("portfolio_analysis", "pages/portfolio_analysis.py")
     portfolio_analysis = module_from_spec(spec)
     sys.modules["portfolio_analysis"] = portfolio_analysis
     spec.loader.exec_module(portfolio_analysis)

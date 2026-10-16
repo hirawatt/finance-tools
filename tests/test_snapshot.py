@@ -23,7 +23,7 @@ from utils import snapshot
 NOW = datetime(2026, 10, 15, 12, 0, tzinfo=timezone.utc)
 TODAY = date(2026, 10, 15)
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CO_PILOT = REPO_ROOT / "pages" / "3_💰_portfolio_analysis.py"
+CO_PILOT = REPO_ROOT / "pages" / "portfolio_analysis.py"
 
 
 @pytest.fixture

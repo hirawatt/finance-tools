@@ -47,6 +47,28 @@ uv run streamlit run main.py
 `requirements.txt` is generated from `uv.lock` (`uv export`) for Streamlit
 Community Cloud, which cannot read the lockfile; don't edit it by hand.
 
+## 🗂️ App Structure
+
+`main.py` is the entrypoint: it sets the page configuration once and registers
+every page with [`st.navigation`](https://docs.streamlit.io/develop/api-reference/navigation/st.navigation)
+and [`st.Page`](https://docs.streamlit.io/develop/api-reference/navigation/st.page),
+so the sidebar's titles, icons and order all live in one place.
+
+| Page | Module | Purpose |
+| --- | --- | --- |
+| Home | `main.py` | Landing page and the data guide |
+| 🚀 Co-Pilot | `pages/portfolio_analysis.py` | Portfolio analytics, risk and rebalancing |
+| 💡 Idea Generation | `pages/stocks_to_trade.py` | Candidate trade ideas |
+| 🚦 Due Diligence | `pages/surprises.py` | Surprise and unusual-activity checks |
+| 🍀 Index Creator | `pages/index_creator.py` | Build, edit and export watchlists |
+| ❄️ Stock Search | `pages/stock_search.py` | Small-cap stock screener |
+| 💸 Tools | `pages/tools.py` | Percentage up/down calculator |
+| 🕴️ About | `pages/about.py` | Credits and links |
+
+Page modules use plain `snake_case` names (no ordering numbers or emoji
+prefixes) and must not call `st.set_page_config` — the entrypoint owns the
+page configuration. Pure, testable analytics helpers live in `utils/`.
+
 ## 🐳 Run with Docker
 
 Every push to `main` publishes a multi-architecture image (`linux/amd64` and
@@ -118,6 +140,7 @@ docker run --rm -p 8501:8501 -v "$PWD/indices:/app/indices" ghcr.io/hirawatt/fin
 - [x] Nightly market-data snapshot on S3-compatible storage
 - [x] Dependency management with [uv](https://docs.astral.sh/uv/)
 - [x] Multi-arch container image published to [GHCR](https://ghcr.io/hirawatt/finance-tools)
+- [x] Streamlit-native multipage navigation with `st.navigation` / `st.Page`
 
 ## 📊 Portfolio Analysis Flow
 

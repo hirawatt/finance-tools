@@ -529,7 +529,6 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
             st.dataframe(report.astype(str), width="stretch")
 
 def main():
-    st.set_page_config("Co-Pilot (Portfolio Management)", "🚀", layout="wide")
     st.title("🚀 Co-Pilot (Portfolio Management)")
     # How to Use Section
     with st.expander("ℹ️ How to Use This"):

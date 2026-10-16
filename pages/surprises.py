@@ -10,10 +10,4 @@ def main():
 
 
 if __name__ == "__main__":
-    st.set_page_config(
-        "Surprises",
-        "🕴️",
-        initial_sidebar_state="expanded",
-        layout="wide",
-    )
     main()

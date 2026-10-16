@@ -10,7 +10,7 @@ graph TD;
 
 ## 📊 Portfolio Analytics
 
-Below the allocation charts, the **Portfolio Analytics** tabs pull data for your
+Below the allocation charts, the **Portfolio Analytics** sections pull data for your
 holdings from Yahoo Finance and NSE:
 
 - **Correlation** — a heatmap of how your holdings move together, plus the most

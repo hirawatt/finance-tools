@@ -39,13 +39,13 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.3.0
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        # --frozen: the lockfile is the source of truth; --no-dev: no pytest here.
+        # uv installs the interpreter pinned in .python-version if the runner lacks it.
+        run: uv sync --frozen --no-dev
 
       - name: Build snapshot
         run: |
@@ -53,6 +53,6 @@ jobs:
           if [ -n "${LIMIT}" ]; then
             args+=(--limit "${LIMIT}")
           fi
-          python scripts/build_snapshot.py "${args[@]}"
+          uv run --frozen --no-dev python scripts/build_snapshot.py "${args[@]}"
         env:
           LIMIT: ${{ inputs.limit }}

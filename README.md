@@ -5,7 +5,7 @@ A collection of financial analysis tools to help investors make data-driven deci
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://finance-tools.streamlit.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/hirawatt?label=GitHub%20Sponsors&style=social)](https://github.com/sponsors/hirawatt)
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![Last Commit](https://img.shields.io/github/last-commit/hirawatt/finance-tools)](https://github.com/hirawatt/finance-tools)
 
 ## 🌟 Featured Tools
@@ -32,13 +32,20 @@ An intelligent portfolio management system that provides comprehensive analysis 
 ```bash
 # Clone the repository
 git clone https://github.com/hirawatt/finance-tools.git
+cd finance-tools
 
-# Install dependencies
-pip install -r requirements.txt
+# Install uv if you don't have it (https://docs.astral.sh/uv/)
+brew install uv
+
+# Create the environment (interpreter pinned in .python-version, deps from uv.lock)
+uv sync
 
 # Run the Streamlit app
-streamlit run app.py
+uv run streamlit run main.py
 ```
+
+`requirements.txt` is generated from `uv.lock` (`uv export`) for Streamlit
+Community Cloud, which cannot read the lockfile; don't edit it by hand.
 
 ## 🗺️ Roadmap
 
@@ -62,6 +69,7 @@ streamlit run app.py
 ### Platform
 
 - [x] Nightly market-data snapshot on S3-compatible storage
+- [x] Dependency management with [uv](https://docs.astral.sh/uv/)
 
 ## 📊 Portfolio Analysis Flow
 
@@ -85,8 +93,8 @@ snapshot, and only falls back to a live fetch for symbols it does not cover
 **Build it locally:**
 
 ```bash
-.venv/bin/python scripts/build_snapshot.py --local ./snapshots   # local directory
-.venv/bin/python scripts/build_snapshot.py --limit 5             # smoke run
+uv run python scripts/build_snapshot.py --local ./snapshots   # local directory
+uv run python scripts/build_snapshot.py --limit 5             # smoke run
 ```
 
 With no `SNAPSHOT_*` configuration the snapshot is written to `./snapshots`

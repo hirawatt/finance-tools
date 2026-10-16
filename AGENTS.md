@@ -14,21 +14,25 @@ shared helpers live in `utils/`.
 
 ## Setup
 
+`uv` manages the interpreter (pinned in `.python-version`) and the virtualenv.
+
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-dev.txt
+uv sync            # creates .venv from uv.lock, dev deps included
 ```
+
+Install uv itself first if needed: `brew install uv`, or see
+<https://docs.astral.sh/uv/getting-started/installation/>.
 
 ## Running
 
 ```bash
-.venv/bin/streamlit run main.py
+uv run streamlit run main.py
 ```
 
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest tests/ -q
+uv run pytest -q
 ```
 
 - Tests must not touch the network. Pure analytics helpers are unit-tested
@@ -45,6 +49,13 @@ python3 -m venv .venv
 - Keep analytics logic in `utils/` as pure functions over pandas objects so it
   stays testable; keep Streamlit and network concerns in `pages/`.
 - Cache network/Streamlit calls with `@st.cache_data`.
-- Dependencies are pinned in `requirements.txt`; test-only deps in
-  `requirements-dev.txt`.
+- Dependencies are declared in `pyproject.toml` and locked in `uv.lock`; change
+  them with `uv add` / `uv remove` (or by editing `pyproject.toml` plus
+  `uv lock`) and commit both files. Test-only deps go in the `dev` dependency
+  group.
+- `requirements.txt` is generated for Streamlit Community Cloud, which cannot
+  read `uv.lock` — never edit it by hand; regenerate with
+  `uv export --no-dev --no-emit-project --no-hashes --output-file requirements.txt`.
+- The uv-managed `.venv` has no `pip`; run things through `uv run` and install
+  through `uv sync` / `uv add`.
 - Check off the matching README roadmap item when completing one.

@@ -1,0 +1,36 @@
+[project]
+name = "finance-tools"
+version = "0.1.0"
+description = "The Trading Dashboard by Hirawat — Indian capital-markets analysis tools"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "numpy==2.5.4",
+  "pandas==3.0.6",
+  "plotly==7.1.0",
+  "streamlit==1.66.0",
+  # Kept as it's likely used by pandas for .xlsx files
+  "openpyxl==3.1.5",
+  # Required by streamlit
+  "pyarrow==26.0.0",
+  # Portfolio analytics: quantstats powers the tearsheet/risk metrics,
+  # yfinance supplies the daily price history, scipy underpins quantstats' stats.
+  "quantstats==0.0.86",
+  "yfinance==1.7.0",
+  "scipy==1.18.1",
+  # Object storage for the nightly market-data snapshot (utils/snapshot.py).
+  # Any S3-compatible endpoint works: AWS S3, Cloudflare R2, MinIO, Backblaze B2.
+  "boto3==1.43.114",
+]
+
+[dependency-groups]
+dev = ["pytest==9.1.1"]
+
+[tool.uv]
+# The dashboard is deployed, not published: never build or install this project itself.
+package = false
+
+[tool.pytest.ini_options]
+# The app is not an installed package, so put the checkout on sys.path for `utils`/`pages`.
+pythonpath = ["."]
+testpaths = ["tests"]

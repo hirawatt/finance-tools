@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 from plotly.graph_objs._figure import Figure
 
-from utils import snapshot
+from utils import snapshot, theme
 from utils.rebalancing import (
     STRATEGIES,
     rebalancing_plan,
@@ -502,7 +502,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
             fig = px.line(chart, template="plotly_white")
             for trace in fig.data:
                 if trace.name == "P50":
-                    trace.update(line=dict(width=3, color="#226216"))
+                    trace.update(line=dict(width=3, color=theme.ACCENT))
                 else:
                     trace.update(line=dict(width=1, dash="dot"))
             fig.update_layout(
@@ -529,7 +529,10 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
             st.dataframe(report.astype(str), width="stretch")
 
 def main():
-    st.title("🚀 Co-Pilot (Portfolio Management)")
+    theme.page_header(
+        "Co-Pilot · Portfolio Management",
+        "Upload your Zerodha holdings for P&L, risk, red flags and a rebalancing plan.",
+    )
     # How to Use Section
     with st.expander("ℹ️ How to Use This"):
         st.markdown(Path("HOW_TO_USE.md").read_text())

@@ -56,18 +56,42 @@ so the sidebar's titles, icons and order all live in one place.
 
 | Page | Module | Purpose |
 | --- | --- | --- |
-| Home | `main.py` | Landing page and the data guide |
-| 🚀 Co-Pilot | `pages/portfolio_analysis.py` | Portfolio analytics, risk and rebalancing |
-| 💡 Idea Generation | `pages/stocks_to_trade.py` | Candidate trade ideas |
-| 🚦 Due Diligence | `pages/surprises.py` | Surprise and unusual-activity checks |
-| 🍀 Index Creator | `pages/index_creator.py` | Build, edit and export watchlists |
-| ❄️ Stock Search | `pages/stock_search.py` | Small-cap stock screener |
-| 💸 Tools | `pages/tools.py` | Percentage up/down calculator |
-| 🕴️ About | `pages/about.py` | Credits and links |
+| Home | `main.py` | Landing page, headline stats and the data guide |
+| Co-Pilot | `pages/portfolio_analysis.py` | Portfolio analytics, risk and rebalancing |
+| Idea Generation | `pages/stocks_to_trade.py` | Candidate trade ideas |
+| Due Diligence | `pages/surprises.py` | Surprise and unusual-activity checks |
+| Index Creator | `pages/index_creator.py` | Build, edit and export watchlists |
+| Stock Search | `pages/stock_search.py` | Small-cap stock screener |
+| Tools | `pages/tools.py` | Percentage up/down calculator |
+| About | `pages/about.py` | Credits and links |
 
 Page modules use plain `snake_case` names (no ordering numbers or emoji
 prefixes) and must not call `st.set_page_config` — the entrypoint owns the
 page configuration. Pure, testable analytics helpers live in `utils/`.
+
+## 🎨 Design & theme
+
+The look is a light "trading terminal" in the vein of Zerodha Kite, Dhan and
+Screener.in: a white canvas, one confident blue accent, and numbers that read
+at a glance.
+
+- **Colours, fonts and radii** live in [`.streamlit/config.toml`](.streamlit/config.toml)
+  — Inter for the interface, JetBrains Mono for code and tickers, plus
+  categorical/sequential/diverging chart palettes that keep multi-series plots
+  legible. Restart the app after editing it.
+- **Gaps Streamlit cannot theme** (the home hero, carded metrics/tables/charts,
+  the sidebar rail, the footer) live in [`utils/theme.py`](utils/theme.py) as one
+  stylesheet plus a few helpers (`apply_theme`, `hero`, `page_header`,
+  `section_header`, `feature_card`, `footer`). It is injected with `st.html`, so
+  a page's markdown elements stay exactly as the page wrote them.
+- **Navigation icons** are [Material Symbols](https://fonts.google.com/icons)
+  rather than emoji, set where the pages are registered in `main.py`.
+- The brand lockups (`assets/logo.svg`, `assets/logo-mark.svg`) are committed
+  SVGs, so the container image carries no extra binary assets.
+
+When adding a page, register it in `main.py` with a title and a
+`:material/icon_name:` icon, and open the content with `theme.page_header(...)`
+so the heading, subtitle and accent rule stay consistent.
 
 ## 🐳 Run with Docker
 
@@ -141,6 +165,7 @@ docker run --rm -p 8501:8501 -v "$PWD/indices:/app/indices" ghcr.io/hirawatt/fin
 - [x] Dependency management with [uv](https://docs.astral.sh/uv/)
 - [x] Multi-arch container image published to [GHCR](https://ghcr.io/hirawatt/finance-tools)
 - [x] Streamlit-native multipage navigation with `st.navigation` / `st.Page`
+- [x] Shared trading-terminal theme (brand palette, Inter/JetBrains Mono, carded metrics and tables)
 
 ## 📊 Portfolio Analysis Flow
 

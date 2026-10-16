@@ -3,6 +3,8 @@
 import streamlit as st
 import pandas as pd
 
+from utils import theme
+
 
 @st.cache_data
 def load_companies() -> pd.DataFrame:
@@ -12,8 +14,10 @@ def load_companies() -> pd.DataFrame:
 
 
 def main() -> None:
-    st.title("❄️ Stock Search")
-    st.caption("Screen small-caps by price and see how a candidate set fits your plan.")
+    theme.page_header(
+        "Stock Search",
+        "Screen small-caps by price and see how a candidate set fits your plan.",
+    )
 
     with st.sidebar:
         st.subheader("Screener settings")

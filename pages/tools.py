@@ -2,6 +2,8 @@
 
 import streamlit as st
 
+from utils import theme
+
 # Percentage steps offered as preset buttons, in display order.
 STEPS = (5.0, 3.0, 2.0, -2.0, -3.0, -5.0)
 
@@ -17,11 +19,12 @@ def set_percent(percent: float) -> None:
 
 
 def main() -> None:
-    st.title("🧮 Tools")
-    st.caption("Quick calculators for everyday trading maths.")
+    theme.page_header("Tools", "Quick calculators for everyday trading maths.")
 
-    st.subheader("Percentage up/down")
-    st.caption("Enter a value and a percentage move to see the resulting value.")
+    theme.section_header(
+        "Percentage up/down",
+        "Enter a value and a percentage move to see the resulting value.",
+    )
 
     c1, c2 = st.columns(2)
     value = c1.number_input("Value", value=100.0, step=1.0)

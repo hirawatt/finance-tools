@@ -55,6 +55,10 @@ uv run pytest -q
 - Register pages in `main.py` with `st.navigation` / `st.Page` (titles, icons
   and order live there); page modules use plain `snake_case` filenames and must
   not call `st.set_page_config`, which the entrypoint owns.
+- Presentation lives in `.streamlit/config.toml` (colours, fonts, radii, chart
+  palettes) plus `utils/theme.py` (the stylesheet Streamlit cannot express, and
+  helpers such as `page_header`). Change the look there, not with per-page CSS,
+  and import `utils.theme` only where the tests do not stub `sys.modules`.
 - Cache network/Streamlit calls with `@st.cache_data`.
 - Dependencies are declared in `pyproject.toml` and locked in `uv.lock`; change
   them with `uv add` / `uv remove` (or by editing `pyproject.toml` plus

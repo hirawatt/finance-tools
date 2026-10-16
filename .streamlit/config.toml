@@ -1,10 +1,108 @@
+# The dashboard's visual identity — a clean, light "trading terminal" in the
+# vein of Zerodha Kite, Dhan and Screener.in: a white canvas, one confident
+# accent colour, and numbers that read at a glance.
+#
+# Streamlit reads this once at startup, so restart the app after editing it.
+# Colours are chosen deliberately:
+#   * blue is the accent (buttons, links, selections, focus) — the same role it
+#     plays in most Indian brokerages;
+#   * green and red stay market-semantic (gains and losses), but muted, so the
+#     chrome never competes with the numbers;
+#   * the chart palettes keep multi-series plots legible on white and stay
+#     distinguishable enough for dense financial tables.
+
 [theme]
-base="light"
-primaryColor="#226216"
-backgroundColor="#f5fcff"
-secondaryBackgroundColor="#e5ecef"
-textColor="#000000"
-font="sans serif"
+base = "light"
+
+# Brand accent — buttons, links, sliders, selected rows and focus rings.
+primaryColor = "#1F6FEB"
+linkColor = "#1F6FEB"
+
+# Surfaces: a white canvas with a faint slate for the sidebar, inputs and cards.
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F6FA"
+textColor = "#0B1220"
+
+# The basic palette Streamlit derives alerts and metric deltas from. Green and
+# red keep their market meaning (gains and losses) but are muted to match the
+# chart ramp, so nothing in the chrome shouts louder than the numbers.
+blueColor = "#1F6FEB"
+greenColor = "#0FA678"
+redColor = "#E5484D"
+yellowColor = "#E8A33D"
+orangeColor = "#F97316"
+
+# Borders and tables — crisp hairlines instead of heavy boxes.
+borderColor = "#E2E8F0"
+dataframeBorderColor = "#E2E8F0"
+dataframeHeaderBackgroundColor = "#F1F5F9"
+dataframeHeaderTextColor = "#334155"
+showWidgetBorder = true
+showSidebarBorder = true
+
+# Typography — Inter for the interface, JetBrains Mono for code and tickers so
+# symbols line up in the terminal spirit of a broker's console.
+font = "'Inter':https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+headingFont = "'Inter':https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
+baseFontSize = 16
+codeFontSize = "0.85rem"
+headingFontWeights = [700, 600]
+
+# Rounded, but restrained — cards and buttons share one radius.
+baseRadius = "0.5rem"
+buttonRadius = "0.5rem"
+
+# Categorical series (sector pies, grouped bars). Blue leads so the brand colour
+# is always the first series; the rest are distinct at small sizes.
+chartCategoricalColors = [
+  "#1F6FEB",
+  "#12B886",
+  "#F59F00",
+  "#E03131",
+  "#7048E8",
+  "#1098AD",
+  "#F76707",
+  "#4C6EF5",
+  "#868E96",
+  "#D6336C",
+]
+
+# Sequential ramp — light to dark blue, for heatmaps and intensity encodings.
+chartSequentialColors = [
+  "#EFF4FF",
+  "#DCE7FE",
+  "#C2D6FC",
+  "#9FC0F9",
+  "#7AA7F5",
+  "#4F8BF0",
+  "#1F6FEB",
+  "#1B5FD0",
+  "#174BA6",
+  "#123A80",
+]
+
+# Diverging ramp — loss-red to gain-blue through neutral, for correlations and
+# anything with a meaningful midpoint.
+chartDivergingColors = [
+  "#7F1D1D",
+  "#B91C1C",
+  "#E03131",
+  "#F1737F",
+  "#F9C2C6",
+  "#C6DBFB",
+  "#8FB6F5",
+  "#4F8BF0",
+  "#1B5FD0",
+  "#123A80",
+]
+
+# The sidebar sits on a slightly cooler tone than the canvas, like a broker's
+# watchlist rail, with white inputs so they still read as controls.
+[theme.sidebar]
+backgroundColor = "#F8FAFC"
+secondaryBackgroundColor = "#FFFFFF"
+borderColor = "#E2E8F0"
 
 [server]
 maxUploadSize = 10
@@ -14,3 +112,12 @@ runOnSave = true
 magicEnabled = false
 # Faster reruns (delta-based instead of a full script resend).
 fastReruns = true
+
+[client]
+# Keep only the menu items declared in st.set_page_config (Get Help, About,
+# Report a bug): no Deploy/rerun/clear-cache buttons cluttering a public app.
+toolbarMode = "minimal"
+
+[browser]
+# The app talks to Yahoo/NSE for public data; it does not phone home.
+gatherUsageStats = false

@@ -8,6 +8,8 @@ published container image ships without any.
 
 import streamlit as st
 
+from utils import theme
+
 FALLBACK_CREDITS = {
     "website": "https://github.com/hirawatt/finance-tools",
     "name": "Hirawat",
@@ -47,6 +49,10 @@ def footer():
 
 
 def main():
+    theme.page_header(
+        "About",
+        "Credits, links and the people behind The Trading Dashboard.",
+    )
     footer()
 
 if __name__ == "__main__":

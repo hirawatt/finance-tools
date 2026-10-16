@@ -47,6 +47,53 @@ uv run streamlit run main.py
 `requirements.txt` is generated from `uv.lock` (`uv export`) for Streamlit
 Community Cloud, which cannot read the lockfile; don't edit it by hand.
 
+## 🐳 Run with Docker
+
+Every push to `main` publishes a multi-architecture image (`linux/amd64` and
+`linux/arm64`) to the GitHub Container Registry, so the dashboard runs without a
+clone or a Python install:
+
+```bash
+docker run --rm -p 8501:8501 ghcr.io/hirawatt/finance-tools:latest
+# then open http://localhost:8501
+```
+
+| Tag | Points at |
+| --- | --- |
+| `latest`, `main` | the tip of `main` |
+| `sha-<commit>` | one specific commit |
+| `v1.2.3`, `v1.2` | a release tag |
+
+The image is self-contained: the interpreter (3.15) and every dependency come
+from `uv.lock`, and with no snapshot storage configured the Co-Pilot falls back
+to live Yahoo/NSE fetches. To read your own snapshot bucket, pass the
+`SNAPSHOT_*` variables:
+
+```bash
+docker run --rm -p 8501:8501 \
+  -e SNAPSHOT_BUCKET=my-bucket \
+  -e SNAPSHOT_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com \
+  -e SNAPSHOT_ACCESS_KEY=... -e SNAPSHOT_SECRET_KEY=... \
+  ghcr.io/hirawatt/finance-tools:latest
+```
+
+Or mount a secrets file to also override the About-page credits:
+
+```bash
+docker run --rm -p 8501:8501 \
+  -v "$PWD/.streamlit/secrets.toml:/app/.streamlit/secrets.toml:ro" \
+  ghcr.io/hirawatt/finance-tools:latest
+```
+
+Build it locally with `docker build -t finance-tools .`.
+
+Watchlists you create in the app are written to `/app/indices` inside the
+container, so mount that directory to keep them across restarts:
+
+```bash
+docker run --rm -p 8501:8501 -v "$PWD/indices:/app/indices" ghcr.io/hirawatt/finance-tools:latest
+```
+
 ## 🗺️ Roadmap
 
 ### Portfolio Analyzer
@@ -70,6 +117,7 @@ Community Cloud, which cannot read the lockfile; don't edit it by hand.
 
 - [x] Nightly market-data snapshot on S3-compatible storage
 - [x] Dependency management with [uv](https://docs.astral.sh/uv/)
+- [x] Multi-arch container image published to [GHCR](https://ghcr.io/hirawatt/finance-tools)
 
 ## 📊 Portfolio Analysis Flow
 

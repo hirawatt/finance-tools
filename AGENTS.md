@@ -27,6 +27,7 @@ Install uv itself first if needed: `brew install uv`, or see
 
 ```bash
 uv run streamlit run main.py
+docker build -t finance-tools .   # the image published to GHCR
 ```
 
 ## Tests
@@ -61,4 +62,7 @@ uv run pytest -q
   `uv export --no-dev --no-emit-project --no-hashes --output-file requirements.txt`.
 - The uv-managed `.venv` has no `pip`; run things through `uv run` and install
   through `uv sync` / `uv add`.
+- Anything the app reads at runtime (data files, `DATA.md`, `indices/`) must
+  stay out of `.dockerignore` and be committed: the published image is built
+  from `Dockerfile` by `.github/workflows/docker.yml`.
 - Check off the matching README roadmap item when completing one.

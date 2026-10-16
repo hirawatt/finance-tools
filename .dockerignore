@@ -1,0 +1,18 @@
+# Keep the build context small: the image needs the app and its data, not the
+# development environment.
+
+.git/
+.github/
+.devcontainer/
+.venv/
+.pytest_cache/
+snapshots/
+
+# Secrets never belong in an image; pass SNAPSHOT_* env vars or mount the file.
+.streamlit/secrets.toml
+
+# Not needed at runtime, and the dev-only deps (pytest) are not installed.
+tests/
+
+**/__pycache__/
+**/*.py[cod]

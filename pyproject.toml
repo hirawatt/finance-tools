@@ -3,7 +3,7 @@ name = "finance-tools"
 version = "0.1.0"
 description = "The Trading Dashboard by Hirawat — Indian capital-markets analysis tools"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.15"
 dependencies = [
   "numpy==2.5.4",
   "pandas==3.0.6",

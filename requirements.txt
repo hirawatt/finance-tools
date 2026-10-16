@@ -171,11 +171,7 @@ tabulate==0.10.0
     # via quantstats
 typing-extensions==4.16.0
     # via
-    #   altair
-    #   anyio
     #   beautifulsoup4
-    #   referencing
-    #   starlette
     #   streamlit
 tzdata==2026.5 ; sys_platform == 'emscripten' or sys_platform == 'win32'
     # via pandas

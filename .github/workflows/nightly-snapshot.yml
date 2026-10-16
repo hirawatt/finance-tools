@@ -30,7 +30,7 @@ jobs:
       SNAPSHOT_ACCESS_KEY: ${{ secrets.SNAPSHOT_ACCESS_KEY }}
       SNAPSHOT_SECRET_KEY: ${{ secrets.SNAPSHOT_SECRET_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Require snapshot storage to be configured
         run: |

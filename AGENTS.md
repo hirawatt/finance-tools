@@ -5,6 +5,13 @@ Guidance for coding agents working in this repository.
 ## Hard rules
 
 - **Never push commits.** Commit locally only; leave pushing to the maintainer.
+- **No emoji, anywhere.** Not in the UI, page titles, widget labels, docs or
+  commits. Use the Material Symbols font Streamlit already bundles for
+  iconography — `:material/<name>:` for `st.Page`/widget `icon=` arguments, and
+  `utils.theme.glyph("<name>")` inside custom HTML — with committed SVG brand
+  marks in `assets/` (`favicon.svg`, `logo.svg`, `logo-mark.svg`) for the
+  favicon and the sidebar lockup. `tests/test_style.py` fails the build if an
+  emoji creeps back in.
 
 ## Project
 

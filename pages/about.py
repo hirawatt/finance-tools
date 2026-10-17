@@ -41,7 +41,7 @@ buymeacoffee = _credits["buymeacoffee"]
 def footer():
     with st.expander("Credits", expanded=True):
         st.markdown(
-            '<div style="text-align: center">Made with ☕️ by '
+            '<div style="text-align: center">Made with care by '
             '<a href="{}">{}</a></div>'.format(website, name),
             unsafe_allow_html=True,
         )

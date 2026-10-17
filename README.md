@@ -1,4 +1,4 @@
-# Finance-Tools 📊
+# Finance-Tools
 
 A collection of financial analysis tools to help investors make data-driven decisions.
 
@@ -8,12 +8,12 @@ A collection of financial analysis tools to help investors make data-driven deci
 [![Python Version](https://img.shields.io/badge/python-3.15%2B-blue)](https://www.python.org/downloads/)
 [![Last Commit](https://img.shields.io/github/last-commit/hirawatt/finance-tools)](https://github.com/hirawatt/finance-tools)
 
-## 🌟 Featured Tools
+## Featured Tools
 
 ### 1. Zerodha Leaderboards
 
 Track top performers using [Verified PnL](https://support.zerodha.com/category/console/reports/other-queries/articles/verified-p-l)
-📈 **Live Demo**: [zerodha.hirawat.in](https://zerodha.hirawat.in/)
+**Live Demo**: [zerodha.hirawat.in](https://zerodha.hirawat.in/)
 
 ### 2. Co-Pilot: Portfolio Analyzer
 
@@ -21,13 +21,13 @@ An intelligent portfolio management system that provides comprehensive analysis 
 
 #### Key Features
 
-- 📊 Portfolio Analysis
-- 🎯 Risk Assessment
-- 📈 Performance Tracking
-- 🔄 Rebalancing Suggestions
-- 📉 Risk Management
+- Portfolio Analysis
+- Risk Assessment
+- Performance Tracking
+- Rebalancing Suggestions
+- Risk Management
 
-## 🚀 Getting Started
+## Getting Started
 
 ```bash
 # Clone the repository
@@ -47,7 +47,7 @@ uv run streamlit run main.py
 `requirements.txt` is generated from `uv.lock` (`uv export`) for Streamlit
 Community Cloud, which cannot read the lockfile; don't edit it by hand.
 
-## 🗂️ App Structure
+## App Structure
 
 `main.py` is the entrypoint: it sets the page configuration once and registers
 every page with [`st.navigation`](https://docs.streamlit.io/develop/api-reference/navigation/st.navigation)
@@ -69,7 +69,7 @@ Page modules use plain `snake_case` names (no ordering numbers or emoji
 prefixes) and must not call `st.set_page_config` — the entrypoint owns the
 page configuration. Pure, testable analytics helpers live in `utils/`.
 
-## 🎨 Design & theme
+## Design & theme
 
 The look is a light "trading terminal" in the vein of Zerodha Kite, Dhan and
 Screener.in: a white canvas, one confident blue accent, and numbers that read
@@ -84,16 +84,20 @@ at a glance.
   stylesheet plus a few helpers (`apply_theme`, `hero`, `page_header`,
   `section_header`, `feature_card`, `footer`). It is injected with `st.html`, so
   a page's markdown elements stay exactly as the page wrote them.
-- **Navigation icons** are [Material Symbols](https://fonts.google.com/icons)
-  rather than emoji, set where the pages are registered in `main.py`.
-- The brand lockups (`assets/logo.svg`, `assets/logo-mark.svg`) are committed
-  SVGs, so the container image carries no extra binary assets.
+- **No emoji, anywhere.** Iconography is [Material Symbols](https://fonts.google.com/icons),
+  the font Streamlit already bundles: `:material/<name>:` where a page is
+  registered in `main.py` (and for widget `icon=` arguments), and
+  `theme.glyph("<name>")` inside custom HTML. [`tests/test_style.py`](tests/test_style.py)
+  fails the build if an emoji creeps back in.
+- **Brand marks are committed SVGs** in `assets/` — `favicon.svg` (the browser
+  tab icon, set as `page_icon`) plus `logo.svg`/`logo-mark.svg` for the sidebar
+  lockup — so the container image carries no extra binary assets.
 
 When adding a page, register it in `main.py` with a title and a
 `:material/icon_name:` icon, and open the content with `theme.page_header(...)`
 so the heading, subtitle and accent rule stay consistent.
 
-## 🐳 Run with Docker
+## Run with Docker
 
 Every push to `main` publishes a multi-architecture image (`linux/amd64` and
 `linux/arm64`) to the GitHub Container Registry, so the dashboard runs without a
@@ -140,7 +144,7 @@ container, so mount that directory to keep them across restarts:
 docker run --rm -p 8501:8501 -v "$PWD/indices:/app/indices" ghcr.io/hirawatt/finance-tools:latest
 ```
 
-## 🗺️ Roadmap
+## Roadmap
 
 ### Portfolio Analyzer
 
@@ -157,7 +161,7 @@ docker run --rm -p 8501:8501 -v "$PWD/indices:/app/indices" ghcr.io/hirawatt/fin
 - [x] Market Intelligence
   - [x] Earnings Calendar
   - [x] Price Forecasting
-  - [x] Red Flag Detection 🚩
+  - [x] Red Flag Detection
 
 ### Platform
 
@@ -167,7 +171,7 @@ docker run --rm -p 8501:8501 -v "$PWD/indices:/app/indices" ghcr.io/hirawatt/fin
 - [x] Streamlit-native multipage navigation with `st.navigation` / `st.Page`
 - [x] Shared trading-terminal theme (brand palette, Inter/JetBrains Mono, carded metrics and tables)
 
-## 📊 Portfolio Analysis Flow
+## Portfolio Analysis Flow
 
 ```mermaid
 flowchart TD
@@ -177,7 +181,7 @@ flowchart TD
     G & H --> I["Sharpe Ratio and Treynor Ratio Comparison"]
 ```
 
-## 🗓️ Nightly Market-Data Snapshot
+## Nightly Market-Data Snapshot
 
 The Co-Pilot's analytics would otherwise fetch every holding from Yahoo and NSE
 on each cold load — roughly 60 upstream requests for a 15-stock portfolio. A
@@ -208,17 +212,17 @@ runs the job nightly at 01:00 IST (and on demand). The universe is every
 watchlist in `indices/` plus the sample portfolio — currently ~220 symbols;
 edit `utils/snapshot.py::build_universe` to widen it.
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 💝 Support the Project
+## Support the Project
 
 If you find this project useful, consider supporting its development:
 
 - [GitHub Sponsors](https://github.com/sponsors/hirawatt)
 - <a href="https://www.buymeacoffee.com/hirawat" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="100" height="25" ></a>
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

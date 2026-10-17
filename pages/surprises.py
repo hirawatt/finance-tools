@@ -4,12 +4,13 @@ import streamlit as st
 
 from utils import theme
 
-# The cross-market checks this desk will run, in display order.
+# The cross-market checks this desk will run, in display order. The first item
+# is a Material Symbols name (see utils/theme.py).
 SCREENS = (
-    ("📐", "Options Pricing Mismatch", "Put-call parity breaks that shouldn't be there."),
-    ("🧩", "Unusual Moves in Pairs", "Twin stocks drifting apart beyond their usual spread."),
-    ("🐋", "Unusual Volume in Stocks", "Cash-market prints far above the recent average."),
-    ("🐳", "Unusual Volume in Options", "Open-interest and volume surges in the derivatives book."),
+    ("compare_arrows", "Options Pricing Mismatch", "Put-call parity breaks that shouldn't be there."),
+    ("difference", "Unusual Moves in Pairs", "Twin stocks drifting apart beyond their usual spread."),
+    ("monitoring", "Unusual Volume in Stocks", "Cash-market prints far above the recent average."),
+    ("candlestick_chart", "Unusual Volume in Options", "Open-interest and volume surges in the derivatives book."),
 )
 
 
@@ -24,7 +25,7 @@ def main():
         with column, st.container(border=True, key=f"td-card-screen-{index}"):
             st.markdown(
                 '<div class="td-card">'
-                f'<div class="td-card__icon">{icon}</div>'
+                f'<div class="td-card__icon">{theme.glyph(icon)}</div>'
                 f'<div class="td-card__title">{title}</div>'
                 f'<p class="td-card__body">{body}</p>'
                 "</div>",

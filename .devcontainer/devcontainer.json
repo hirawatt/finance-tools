@@ -21,7 +21,7 @@
       ]
     }
   },
-  "updateContentCommand": "[ -f packages.txt ] && sudo apt update && sudo apt upgrade -y && sudo xargs apt install -y <packages.txt; [ -f pyproject.toml ] && curl -LsSf https://astral.sh/uv/install.sh | sh && uv sync --frozen; echo '✅ Packages installed and Requirements met'",
+  "updateContentCommand": "[ -f packages.txt ] && sudo apt update && sudo apt upgrade -y && sudo xargs apt install -y <packages.txt; [ -f pyproject.toml ] && curl -LsSf https://astral.sh/uv/install.sh | sh && uv sync --frozen; echo 'Packages installed and requirements met'",
   "postAttachCommand": {
     "server": "uv run streamlit run main.py --server.enableCORS false --server.enableXsrfProtection false"
   },

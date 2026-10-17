@@ -19,7 +19,8 @@ from utils import theme
 
 st.set_page_config(
     'The Trading Dashboard by Hirawat',
-    '🕴️',
+    # The committed SVG favicon, not an emoji, so the tab matches the brand.
+    page_icon='assets/favicon.svg',
     layout='wide',
     initial_sidebar_state='expanded',
     menu_items={
@@ -67,9 +68,9 @@ def home() -> None:
             "ideas — the numbers that matter, without the noise."
         ),
         chips=(
-            "🚀 Co-Pilot portfolio analytics",
-            "🚩 Red-flag & default-risk screening",
-            "🌙 Nightly market-data snapshot",
+            ("rocket_launch", "Co-Pilot portfolio analytics"),
+            ("crisis_alert", "Red-flag & default-risk screening"),
+            ("bedtime", "Nightly market-data snapshot"),
         ),
     )
 
@@ -88,42 +89,42 @@ def home() -> None:
     cards = (
         {
             "key": "td-card-copilot",
-            "icon": "🚀",
+            "icon": "rocket_launch",
             "title": "Co-Pilot",
             "body": "Analyse, optimise and rebalance your portfolio.",
             "page": "pages/portfolio_analysis.py",
         },
         {
             "key": "td-card-ideas",
-            "icon": "💡",
+            "icon": "lightbulb",
             "title": "Idea Generation",
             "body": "Screen the market for trade candidates.",
             "page": "pages/stocks_to_trade.py",
         },
         {
             "key": "td-card-diligence",
-            "icon": "🚦",
+            "icon": "troubleshoot",
             "title": "Due Diligence",
             "body": "Spot unusual activity before you commit.",
             "page": "pages/surprises.py",
         },
         {
             "key": "td-card-indices",
-            "icon": "🍀",
+            "icon": "playlist_add_check",
             "title": "Index Creator",
             "body": "Build, edit and export watchlists, ready for TradingView.",
             "page": "pages/index_creator.py",
         },
         {
             "key": "td-card-search",
-            "icon": "❄️",
+            "icon": "manage_search",
             "title": "Stock Search",
             "body": "Hunt small caps against a budget and an allocation cap.",
             "page": "pages/stock_search.py",
         },
         {
             "key": "td-card-tools",
-            "icon": "🧮",
+            "icon": "calculate",
             "title": "Tools",
             "body": "Quick calculators for everyday trading maths.",
             "page": "pages/tools.py",
@@ -136,7 +137,7 @@ def home() -> None:
             with column:
                 theme.feature_card(**card)
 
-    with st.expander("🗂️ Data guide"):
+    with st.expander("Data guide"):
         st.dataframe(load_info(), width="stretch", hide_index=True)
         st.write(Path("DATA.md").read_text())
 

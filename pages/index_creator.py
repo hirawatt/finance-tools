@@ -75,7 +75,7 @@ def handle_file_operations(watchlist: str):
         try:
             with open(safe_path, "rb") as f:
                 col2.download_button(
-                    label="📥 Download current watchlist",
+                    label="Download current watchlist",
                     data=f,
                     file_name=f"{watchlist}.csv",
                     mime='text/csv',
@@ -86,7 +86,7 @@ def handle_file_operations(watchlist: str):
         col2.error("Watchlist file not found or invalid")
 
 def main():
-    st.title("🎯 Custom Index Creator & Watchlists")
+    st.title("Custom Index Creator & Watchlists")
     # Initialize session state
     if "instruments_df" not in st.session_state:
         st.session_state.instruments_df = load_instruments()
@@ -115,7 +115,7 @@ def main():
         
         if selected_stocks != constituents:
             st.warning("You have modified the selection. Save changes?")
-            if st.button("💾 Save Changes"):
+            if st.button("Save Changes"):
                 safe_path = get_safe_path(index_file)
                 if safe_path:
                     try:
@@ -130,12 +130,12 @@ def main():
                     st.error("Invalid index file path.")
     
     # File Operations
-    st.markdown("### 📁 File Operations")
+    st.markdown("### File Operations")
     handle_file_operations(index_file)
     
     # TradingView Integration
     with st.sidebar:
-        st.subheader("📊 TradingView Integration")
+        st.subheader("TradingView Integration")
         if constituents:
             tv_symbol = create_tv_index_string(constituents)
             st.info("Copy this symbol to TradingView:")

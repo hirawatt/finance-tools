@@ -3,7 +3,9 @@
 Streamlit's native theming (``.streamlit/config.toml``) owns the colours, fonts
 and radii. This module fills the gaps it cannot reach — the hero banner on the
 home page, carded metric/chart/table surfaces, sidebar polish — and exposes a
-handful of small helpers so every page renders its headings the same way.
+handful of small helpers so every page renders its headings and icons the same
+way. Iconography is Material Symbols (the font Streamlit bundles); there are no
+emoji in the app, its pages or its docs.
 
 Everything here is injected with :func:`st.html` rather than ``st.markdown``:
 ``st.html`` renders to its own element type, so a page's list of markdown
@@ -18,6 +20,7 @@ tests will import.)
 from __future__ import annotations
 
 import streamlit as st
+from streamlit.string_util import is_material_icon
 
 #: The brand accent. Kept in sync with ``primaryColor`` in
 #: ``.streamlit/config.toml``; pages use it for hand-coloured plotly traces that
@@ -60,6 +63,26 @@ _CSS = """
   transition: background-color 0.15s ease;
 }
 [data-testid="stSidebarNavLink"]:hover { background-color: var(--td-accent-soft); }
+
+/* ---- Icons -------------------------------------------------------- */
+/* Material Symbols, the font Streamlit already bundles for navigation. No
+   emoji: the same vocabulary as ``st.Page(icon=":material/<name>:")``. */
+.td-i {
+  font-family: "Material Symbols Rounded";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 1.1em;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  vertical-align: -0.18em;
+}
 
 /* ---- Typography --------------------------------------------------- */
 h1, h2, h3, h4 { color: var(--td-ink); }
@@ -224,6 +247,7 @@ hr { border-color: var(--td-line); margin: 1.15rem 0; }
   font-weight: 600;
   color: #E2E8F0;
 }
+.td-hero__chip .td-i { color: #8FB6F5; }
 
 /* ---- Page and section headings ------------------------------------ */
 .td-ph { margin: 0 0 1.4rem; }
@@ -257,7 +281,8 @@ hr { border-color: var(--td-line); margin: 1.15rem 0; }
   height: 2.5rem;
   border-radius: 0.75rem;
   background: var(--td-accent-soft);
-  font-size: 1.3rem;
+  color: var(--td-accent);
+  font-size: 1.35rem;
 }
 .td-card__title { font-size: 1.02rem; font-weight: 700; letter-spacing: -0.01em; color: var(--td-ink); }
 .td-card__body { margin: 0; color: var(--td-muted); font-size: 0.9rem; line-height: 1.55; }
@@ -295,9 +320,35 @@ def apply_theme() -> None:
     st.html(f"<style>{_CSS}</style>")
 
 
-def hero(eyebrow: str, title: str, subtitle: str, chips: tuple[str, ...] = ()) -> None:
-    """Render the dark hero banner at the top of a page."""
-    chip_html = "".join(f'<span class="td-hero__chip">{chip}</span>' for chip in chips)
+def glyph(name: str) -> str:
+    """Inline markup for a Material Symbols icon, for use inside custom HTML.
+
+    ``name`` is a Material Symbols name — the same vocabulary as
+    ``st.Page(icon=":material/<name>:")`` — so a typo raises instead of quietly
+    rendering the literal text. There are no emoji anywhere in the app: this and
+    ``st.Page``'s icons are the only iconography.
+    """
+    if not is_material_icon(name):
+        raise ValueError(
+            f"{name!r} is not a Material Symbols icon name; "
+            "see https://fonts.google.com/icons?icon.set=Material+Symbols"
+        )
+    return f'<span class="td-i" aria-hidden="true">{name}</span>'
+
+
+def hero(
+    eyebrow: str,
+    title: str,
+    subtitle: str,
+    chips: tuple[tuple[str, str], ...] = (),
+) -> None:
+    """Render the dark hero banner at the top of a page.
+
+    ``chips`` are ``(icon_name, label)`` pairs rendered as pill badges.
+    """
+    chip_html = "".join(
+        f'<span class="td-hero__chip">{glyph(name)}{label}</span>' for name, label in chips
+    )
     st.html(
         '<section class="td-hero">'
         f'<div class="td-hero__eyebrow">{eyebrow}</div>'
@@ -334,11 +385,14 @@ def feature_card(
     page: str,
     label: str = "Open",
 ) -> None:
-    """A bordered card with an icon, a description and a deep link to a page."""
+    """A bordered card with an icon, a description and a deep link to a page.
+
+    ``icon`` is a Material Symbols name, rendered by :func:`glyph`.
+    """
     with st.container(border=True, key=key):
         st.markdown(
             '<div class="td-card">'
-            f'<div class="td-card__icon">{icon}</div>'
+            f'<div class="td-card__icon">{glyph(icon)}</div>'
             f'<div class="td-card__title">{title}</div>'
             f'<p class="td-card__body">{body}</p>'
             "</div>",

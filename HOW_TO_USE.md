@@ -8,7 +8,7 @@ flowchart TD
     G & H --> I["Sharpe Ratio and Treynor Ratio Comparison"]
 ```
 
-## 📊 Portfolio Analytics
+## Portfolio Analytics
 
 Below the allocation charts, the **Portfolio Analytics** sections pull data for your
 holdings from Yahoo Finance and NSE:
@@ -19,13 +19,13 @@ holdings from Yahoo Finance and NSE:
   risk/return summary for the whole portfolio.
 - **Valuation** — trailing/forward P/E, P/B, EPS and market cap per holding,
   with the portfolio's value-weighted P/E (total value ÷ total earnings).
-- **Risk Flags** 🚩 — a rule-based screen over reported fundamentals (leverage,
+- **Risk Flags** — a rule-based screen over reported fundamentals (leverage,
   earnings, cash flow, margins, valuation); Altman Z-score default-risk zones;
   and NSE ASM/GSM surveillance-list membership.
 - **Rebalance** — target allocations (equal weight, inverse volatility, risk
   parity) with an optional per-holding cap, shown against your current mix as a
   buy/sell trade list in shares and rupees.
-- **Outlook** 🔮 — upcoming earnings dates and a Monte Carlo projection of the
+- **Outlook** — upcoming earnings dates and a Monte Carlo projection of the
   portfolio value (a scenario range, not a prediction).
 - **Tearsheet** — the full [quantstats](https://github.com/ranaroussi/quantstats)
   metrics table (Sharpe, Sortino, Calmar, drawdown, etc.).

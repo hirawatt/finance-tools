@@ -42,13 +42,13 @@ REQUIRED_COLUMNS = ['Symbol', 'Average Price', 'Previous Closing Price'] + QUANT
 # because every tab body executes on every rerun — which would trigger all of the
 # per-symbol network fetches even when the visitor only opens one section.
 ANALYTICS_SECTIONS = (
-    "🔗 Correlation",
-    "🎯 Beta & Risk",
-    "💹 Valuation",
-    "🚩 Risk Flags",
-    "⚖️ Rebalance",
-    "🔮 Outlook",
-    "📈 Tearsheet",
+    "Correlation",
+    "Beta & Risk",
+    "Valuation",
+    "Risk Flags",
+    "Rebalance",
+    "Outlook",
+    "Tearsheet",
 )
 
 @st.cache_data(ttl=3600)
@@ -133,7 +133,7 @@ def format_summary(summary: pd.Series) -> pd.Series:
 def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
     """Render correlation, beta and quantstats-based portfolio analytics."""
     st.markdown("---")
-    st.subheader("📊 Portfolio Analytics")
+    st.subheader("Portfolio Analytics")
     st.caption(
         f"Daily prices via Yahoo Finance · benchmark {BENCHMARK_NAME} · "
         "metrics computed on value-weighted daily returns."
@@ -157,7 +157,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
 
     missing = sorted(s for s in symbols if s not in prices.columns)
     if missing:
-        st.caption("⚠️ No market data for: " + ", ".join(missing))
+        st.caption("No market data for: " + ", ".join(missing))
 
     returns = compute_returns(prices)
     if returns.empty or len(returns) < MIN_OBSERVATIONS:
@@ -167,7 +167,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
     usable = [c for c in returns.columns if returns[c].notna().sum() >= MIN_OBSERVATIONS]
     skipped = sorted(c for c in returns.columns if c not in usable)
     if skipped:
-        st.caption("⚠️ Skipped (insufficient history): " + ", ".join(skipped))
+        st.caption("Skipped (insufficient history): " + ", ".join(skipped))
     if not usable:
         st.info("No symbol had enough overlapping price history.")
         return
@@ -190,7 +190,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
     if section is None:  # the control can be cleared back to no selection
         section = ANALYTICS_SECTIONS[0]
 
-    if section == "🔗 Correlation":
+    if section == "Correlation":
         corr = correlation_matrix(returns)
         fig = px.imshow(
             corr,
@@ -212,7 +212,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
                 + ", ".join(f"{a} / {b} ({v:.2f})" for (a, b), v in pairs.head(3).items())
             )
 
-    if section == "🎯 Beta & Risk":
+    if section == "Beta & Risk":
         if benchmark is not None and not benchmark.empty:
             beta = compute_beta(returns, benchmark)
             if beta.empty:
@@ -232,7 +232,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
             width="stretch",
         )
 
-    if section == "💹 Valuation":
+    if section == "Valuation":
         try:
             company_data = load_company_data(tuple(sorted(usable)))
         except Exception as e:  # network / parsing failures should not break the page
@@ -288,7 +288,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
                 fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
                 st.plotly_chart(fig, width="stretch")
 
-    if section == "🚩 Risk Flags":
+    if section == "Risk Flags":
         try:
             company_data = load_company_data(tuple(sorted(usable)))
         except Exception as e:  # network / parsing failures should not break the page
@@ -311,7 +311,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
         else:
             flags = detect_red_flags(company_data)
             if flags.empty:
-                st.success("✅ No fundamental red flags detected in the selected holdings.")
+                st.success("No fundamental red flags detected in the selected holdings.")
             else:
                 flagged = flags["Symbol"].nunique()
                 high = flags.loc[flags["Severity"] == "high", "Symbol"].nunique()
@@ -373,7 +373,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
 
             matched = check_symbols(usable, surveillance)
             if matched.empty:
-                st.success("✅ None of your holdings are on NSE's ASM/GSM lists.")
+                st.success("None of your holdings are on NSE's ASM/GSM lists.")
             else:
                 asm = matched[matched["List"].str.startswith("ASM")]
                 gsm = matched[matched["List"] == "GSM"]
@@ -383,7 +383,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
                 c3.metric("Holdings on lists", matched["Symbol"].nunique())
                 st.dataframe(matched, width="stretch", hide_index=True)
 
-    if section == "⚖️ Rebalance":
+    if section == "Rebalance":
         st.caption(
             "Target allocations are built from daily returns; trades are sized against "
             "current market value at the latest close."
@@ -449,7 +449,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
             )
             st.caption("Δ Qty is rounded to whole shares; a negative figure is a sell.")
 
-    if section == "🔮 Outlook":
+    if section == "Outlook":
         try:
             earnings = load_earnings(tuple(sorted(usable)))
         except Exception as e:
@@ -519,7 +519,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
             c2.metric("Pessimistic (P5)", f"₹{final['P5']:,.0f}")
             c3.metric("Optimistic (P95)", f"₹{final['P95']:,.0f}")
 
-    if section == "📈 Tearsheet":
+    if section == "Tearsheet":
         report = full_metrics_report(portfolio_returns)
         if report.empty:
             st.info("Not enough data to build a tearsheet.")
@@ -534,10 +534,10 @@ def main():
         "Upload your Zerodha holdings for P&L, risk, red flags and a rebalancing plan.",
     )
     # How to Use Section
-    with st.expander("ℹ️ How to Use This"):
+    with st.expander("How to Use This"):
         st.markdown(Path("HOW_TO_USE.md").read_text())
         # File Upload with Zerodha Instructions
-        st.markdown("### 📂 Upload Holdings")
+        st.markdown("### Upload Holdings")
         st.markdown("""
             Upload your holdings from Zerodha:
             - [Family Portfolio](https://console.zerodha.com/portfolio/holdings/family)
@@ -561,14 +561,14 @@ def main():
             df = pd.read_excel(uploaded_file, header=22, usecols="B:L")
             if set(REQUIRED_COLUMNS).issubset(df.columns):
                 st.session_state.portfolio_data = df
-                st.success("✅ Successfully loaded your portfolio!")
+                st.success("Successfully loaded your portfolio!")
             else:
-                st.error("❌ Invalid file format. Using sample data instead.")
+                st.error("Invalid file format. Using sample data instead.")
         except Exception as e:
-            st.error(f"❌ Error loading file: {e}")
-            st.info("ℹ️ Using sample data for demonstration")
+            st.error(f"Error loading file: {e}")
+            st.info("Using sample data for demonstration")
     else:
-        st.info("ℹ️ Currently showing sample portfolio data. Upload your holdings file to see your actual portfolio.")
+        st.info("Currently showing sample portfolio data. Upload your holdings file to see your actual portfolio.")
 
     # Process Data
     df = process_portfolio(st.session_state.portfolio_data)

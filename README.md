@@ -63,6 +63,7 @@ so the sidebar's titles, icons and order all live in one place.
 | Index Creator | `pages/index_creator.py` | Build, edit and export watchlists |
 | Stock Search | `pages/stock_search.py` | Small-cap stock screener |
 | Tools | `pages/tools.py` | Percentage up/down calculator |
+| Tool Directory | `pages/tool_directory.py` | Linked logo grid of external Indian-market platforms |
 | About | `pages/about.py` | Credits and links |
 
 Page modules use plain `snake_case` names (no ordering numbers or emoji
@@ -90,9 +91,11 @@ at a glance.
   registered in `main.py` (and for widget `icon=` arguments), and
   `theme.glyph("<name>")` inside custom HTML. [`tests/test_style.py`](tests/test_style.py)
   fails the build if an emoji creeps back in.
-- **Brand marks are committed SVGs** in `assets/` — `favicon.svg` (the browser
+- **Brand marks are committed files** in `assets/` — `favicon.svg` (the browser
   tab icon, set as `page_icon`, and the collapsed sidebar mark) and `logo.svg`
-  (the sidebar lockup) — so the container image carries no extra binary assets.
+  (the sidebar lockup), plus the tool-directory logos in `assets/logos/` (see
+  that folder's README for provenance) — so the app never fetches a mark at
+  runtime and the container image needs no network for its own chrome.
 
 When adding a page, register it in `main.py` with a title and a
 `:material/icon_name:` icon, and open the content with `theme.page_header(...)`
@@ -172,6 +175,7 @@ docker run --rm -p 8501:8501 -v "$PWD/indices:/app/indices" ghcr.io/hirawatt/fin
 - [x] Streamlit-native multipage navigation with `st.navigation` / `st.Page`
 - [x] Shared trading-terminal theme (brand palette, Inter/JetBrains Mono, carded metrics and tables)
 - [x] Modern Streamlit UI pass (segmented controls, pill filters, responsive control rows, sparkline metrics, `column_config` tables, accessible charts)
+- [x] Tool Directory: a linked logo grid of the external platforms used around the dashboard
 
 ## Portfolio Analysis Flow
 

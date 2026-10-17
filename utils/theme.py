@@ -19,10 +19,17 @@ tests will import.)
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+import base64
+from collections.abc import Iterable, Mapping, Sequence
+from html import escape
+from pathlib import Path
 from typing import Callable, Optional
+from urllib.parse import urlparse
 
 import streamlit as st
+
+#: Repository root, so committed assets resolve no matter the working directory.
+_ROOT = Path(__file__).resolve().parent.parent
 
 #: The brand palette, and the single source of truth for every colour this
 #: module styles. ``.streamlit/config.toml`` mirrors these values because it owns
@@ -299,6 +306,81 @@ hr { border-color: var(--td-line); margin: 1.15rem 0; }
   border-color: rgba(31, 111, 235, 0.5);
 }
 
+/* ---- Tool directory ----------------------------------------------- */
+/* A responsive logo wall: as many cards per row as the width allows. */
+.td-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 1rem;
+}
+/* Each card is one outbound link, so the whole tile is the target. */
+.td-tool {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1.1rem 1.15rem 1rem;
+  border: 1px solid var(--td-line);
+  border-radius: var(--td-radius);
+  background: var(--td-surface);
+  box-shadow: var(--td-shadow-sm);
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.td-tool:hover {
+  transform: translateY(-2px);
+  border-color: rgba(31, 111, 235, 0.5);
+  box-shadow: var(--td-shadow-md);
+  text-decoration: none;
+}
+.td-tool__mark { display: grid; place-items: center; height: 3.25rem; }
+.td-tool__logo { max-height: 3.25rem; max-width: 100%; object-fit: contain; }
+.td-tool__mono {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.85rem;
+  background: var(--td-accent-soft);
+  color: var(--td-accent);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.td-tool__name { font-size: 1.02rem; font-weight: 700; color: var(--td-ink); }
+.td-tool__domain {
+  margin-top: 0.1rem;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.74rem;
+  color: var(--td-muted);
+  word-break: break-all;
+}
+.td-tool__desc { margin: 0; flex: 1; color: var(--td-muted); font-size: 0.88rem; line-height: 1.5; }
+.td-tool__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-top: 0.15rem;
+}
+.td-tool__tag {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--td-accent-soft);
+  color: var(--td-accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.td-tool__open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--td-accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.td-tool__open .td-i { font-size: 1rem; }
+
 /* ---- Footer -------------------------------------------------------- */
 .td-footer {
   display: flex;
@@ -464,6 +546,75 @@ def feature_card(
         key=key,
         action=lambda: st.page_link(page, label=label, width="stretch"),
     )
+
+
+def _logo_data_uri(relative_path: str) -> Optional[str]:
+    """Inline a committed logo as a data URI, or ``None`` when it is absent.
+
+    Data URIs keep the card markup self-contained: nothing depends on Streamlit
+    serving a static directory, and the committed files stay the source of truth.
+    """
+    path = _ROOT / relative_path
+    if not path.is_file():
+        return None
+    mime = "image/svg+xml" if path.suffix.lower() == ".svg" else "image/png"
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
+
+
+def _tool_mark(item: Mapping) -> str:
+    """The logo tile for one directory entry, falling back to its initials."""
+    logo = item.get("logo")
+    uri = _logo_data_uri(logo) if logo else None
+    if uri:
+        return (
+            '<div class="td-tool__mark">'
+            f'<img class="td-tool__logo" src="{uri}" alt="{escape(item["name"])} logo">'
+            "</div>"
+        )
+    initials = item.get("initials") or "".join(word[0] for word in item["name"].split())[:2]
+    return (
+        '<div class="td-tool__mark">'
+        f'<span class="td-tool__mono" aria-hidden="true">{escape(initials.upper())}</span>'
+        "</div>"
+    )
+
+
+def _tool_card(item: Mapping) -> str:
+    """Markup for one external-tool card: the whole tile links out to ``url``."""
+    domain = urlparse(item["url"]).netloc
+    if domain.startswith("www."):
+        domain = domain[4:]
+    tag = item.get("tag")
+    tag_html = f'<span class="td-tool__tag">{escape(tag)}</span>' if tag else ""
+    return (
+        f'<a class="td-tool" href="{escape(item["url"], quote=True)}" '
+        'target="_blank" rel="noopener noreferrer">'
+        + _tool_mark(item)
+        + '<div class="td-tool__head">'
+        + f'<div class="td-tool__name">{escape(item["name"])}</div>'
+        + f'<div class="td-tool__domain">{escape(domain)}</div>'
+        + "</div>"
+        + f'<p class="td-tool__desc">{escape(item["description"])}</p>'
+        + '<div class="td-tool__meta">'
+        + tag_html
+        + f'<span class="td-tool__open">{glyph("open_in_new")}<span>Visit</span></span>'
+        + "</div>"
+        + "</a>"
+    )
+
+
+def tool_grid(items: Iterable[Mapping]) -> None:
+    """Render a responsive grid of external-tool cards.
+
+    Each item is a mapping of ``name``, ``url`` and ``description``, plus an
+    optional ``tag`` and an optional ``logo`` (a path relative to the repository
+    root). Entries without a usable ``logo`` fall back to an ``initials`` tile,
+    which is derived from the name when not given, so the grid never renders a
+    broken image. The entire card is an outbound link opened in a new tab.
+    """
+    cards = "".join(_tool_card(item) for item in items)
+    st.html(f'<div class="td-tools">{cards}</div>')
 
 
 def footer() -> None:

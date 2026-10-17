@@ -132,6 +132,13 @@ def home() -> None:
             "body": "Quick calculators for everyday trading maths.",
             "page": "pages/tools.py",
         },
+        {
+            "key": "td-card-directory",
+            "icon": "apps",
+            "title": "Tool Directory",
+            "body": "Every platform we use, in one linked grid.",
+            "page": "pages/tool_directory.py",
+        },
     )
 
     for start in range(0, len(cards), 3):
@@ -155,6 +162,7 @@ PAGES = [
     st.Page("pages/index_creator.py", title="Index Creator", icon=":material/playlist_add_check:"),
     st.Page("pages/stock_search.py", title="Stock Search", icon=":material/manage_search:"),
     st.Page("pages/tools.py", title="Tools", icon=":material/calculate:"),
+    st.Page("pages/tool_directory.py", title="Tool Directory", icon=":material/apps:"),
     st.Page("pages/about.py", title="About", icon=":material/info:"),
 ]
 

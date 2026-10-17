@@ -70,6 +70,7 @@ so the sidebar's titles, icons and order all live in one place.
 | Page | Module | Purpose |
 | --- | --- | --- |
 | Home | `main.py` | Branded landing page: hero, headline stats, workflow strip, tool cards and the data guide |
+| Import Portfolio | `pages/portfolio_import.py` | Bring holdings from a broker, resolve symbols, keep them session-only or save locally |
 | Co-Pilot | `pages/portfolio_analysis.py` | Portfolio analytics, risk and rebalancing |
 | Idea Generation | `pages/stocks_to_trade.py` | Candidate trade ideas |
 | Due Diligence | `pages/surprises.py` | Surprise and unusual-activity checks |
@@ -170,10 +171,20 @@ container, so mount that directory to keep them across restarts:
 docker run --rm -p 8501:8501 -v "$PWD/indices:/app/indices" ghcr.io/hirawatt/finance-tools:latest
 ```
 
+Portfolios saved from the Import page and saved column mappings go to
+`/app/portfolios` and `/app/profiles`; mount those too if you want them to
+survive a restart. Neither is ever baked into the image.
+
+To run this image on a server that redeploys automatically on every push to
+`main`, see [Deploying on Coolify](DEPLOY.md) — it deploys the published image
+instead of building it on the host.
+
 ## Roadmap
 
 ### Portfolio Analyzer
 
+- [x] Import holdings from a broker — Zerodha, Groww, Dhan and Angel One are detected from the file's headers; any other sheet maps through the generic column editor
+- [x] ISIN-first symbol resolution, so the same stock imported from two brokers merges into one position
 - [x] Integration with [quantstats](https://github.com/ranaroussi/quantstats)
 - [x] Advanced Portfolio Analytics
   - [x] Sector & Stock Weightage
@@ -198,6 +209,7 @@ docker run --rm -p 8501:8501 -v "$PWD/indices:/app/indices" ghcr.io/hirawatt/fin
 - [x] Shared trading-terminal theme (brand palette, Inter/JetBrains Mono, carded metrics and tables)
 - [x] Modern Streamlit UI pass (segmented controls, pill filters, responsive control rows, sparkline metrics, `column_config` tables, accessible charts)
 - [x] Tool Directory: a linked logo grid of the external platforms used around the dashboard
+- [x] Privacy-first portfolio storage: session-only by default, with an opt-in local `portfolios/` backend behind a `PortfolioStore` seam (PocketBase-ready for a later client book)
 - [x] Branded home page: app mark and name, an illustrated hero, a four-step workflow strip, headline stats and the tool cards, with a README screenshot
 - [x] Fix: the theme stylesheet was silently dropped by Streamlit's sanitiser (a tag-like sequence in a CSS comment), leaving every page unstyled
 

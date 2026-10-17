@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple
 from plotly.graph_objs._figure import Figure
 
-from utils import snapshot, theme
+from utils import brokers, holdings, portfolio_store, snapshot, theme
+from utils.theme import printf_format
 from utils.rebalancing import (
     STRATEGIES,
     rebalancing_plan,
@@ -34,17 +35,20 @@ from utils.market_data import (
 from utils.red_flags import detect_red_flags, flag_summary
 from utils.surveillance import check_symbols
 
-# Constants
-QUANTITY_COLUMNS = ['Quantity Available', 'Quantity Discrepant', 'Quantity Long Term', 
-                   'Quantity Pledged (Margin)', 'Quantity Pledged (Loan)']
-REQUIRED_COLUMNS = ['Symbol', 'Average Price', 'Previous Closing Price'] + QUANTITY_COLUMNS
+@st.cache_data(ttl=3600)
+def load_sectors() -> pd.DataFrame:
+    """Sector lookup used by the sector-allocation chart."""
+    return pd.read_csv('./data/stock-sector.csv').rename(columns={"NSE code": "Symbol"})
 
 @st.cache_data(ttl=3600)
-def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Load and cache both portfolio and sector data"""
-    portfolio = pd.read_excel('./data/holdings-sample.xlsx', header=22, usecols="B:L")
-    sectors = pd.read_csv('./data/stock-sector.csv').rename(columns={"NSE code": "Symbol"})
-    return portfolio, sectors
+def load_sample_holdings() -> pd.DataFrame:
+    """The committed sample portfolio, read through the broker importer.
+
+    Going through the same reader a real upload uses keeps one code path — and
+    proves the importer works on every cold start.
+    """
+    data = Path('./data/holdings-sample.xlsx').read_bytes()
+    return brokers.import_holdings(data, 'holdings-sample.xlsx').core
 
 @st.cache_resource(show_spinner=False)
 def snapshot_store():
@@ -86,14 +90,6 @@ def load_default_risk(symbols: Tuple[str, ...], market_caps: Dict[str, float]) -
 def load_earnings(symbols: Tuple[str, ...]) -> pd.DataFrame:
     """Upcoming earnings dates for the given symbols, snapshot-first."""
     return snapshot.load_earnings(symbols, store=snapshot_store())
-
-def process_portfolio(df: pd.DataFrame) -> pd.DataFrame:
-    """Process portfolio data efficiently"""
-    df = df.copy()
-    df['Total Quantity'] = df.loc[:, QUANTITY_COLUMNS].sum(axis='columns')
-    df['Invested Value'] = df['Total Quantity'] * df['Average Price']
-    df['Current Value'] = df['Total Quantity'] * df['Previous Closing Price']
-    return df[['Symbol', 'Total Quantity', 'Invested Value', 'Current Value']]
 
 def create_charts(df: pd.DataFrame, df_with_sectors: pd.DataFrame) -> Tuple[Figure, Figure]:
     """Create portfolio charts"""
@@ -161,20 +157,6 @@ def load_or_empty(loader: Callable[..., pd.DataFrame], *args, what: str) -> pd.D
 def fundamentals_for(ctx: AnalyticsContext) -> pd.DataFrame:
     """Company fundamentals, shared by the valuation and risk-flag sections."""
     return load_or_empty(load_company_data, ctx.symbols, what="fundamentals")
-
-
-def printf_format(pattern: str) -> str:
-    """Translate a ``str.format`` number pattern into printf for ``column_config``.
-
-    ``"₹{:,.0f}"`` becomes ``"₹%,.0f"`` and ``"{:.1f}%"`` becomes ``"%.1f%%"``,
-    so the call sites keep writing Python format strings while the cells are
-    formatted by :func:`st.column_config.NumberColumn` — the Streamlit-native
-    way; a pandas Styler is reserved for colouring only.
-    """
-    prefix, _, rest = pattern.partition("{")
-    spec, _, suffix = rest.partition("}")
-    # Drop the format spec's leading ":" ("{:,.0f}" -> ",.0f").
-    return f"{prefix}%{spec.removeprefix(':')}" + suffix.replace("%", "%%")
 
 
 def table(
@@ -708,48 +690,30 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
 def main():
     theme.page_header(
         "Co-Pilot · Portfolio Management",
-        "Upload your Zerodha holdings for P&L, risk, red flags and a rebalancing plan.",
+        "P&L, risk, red flags and a rebalancing plan for your holdings.",
     )
     # How to Use Section
     with st.expander("How to use this"):
         st.markdown(Path("HOW_TO_USE.md").read_text())
-        # File Upload with Zerodha Instructions
-        st.markdown("### Upload holdings")
-        st.markdown("""
-            Upload your holdings from Zerodha:
-            - [Family Portfolio](https://console.zerodha.com/portfolio/holdings/family)
-            - [Personal Portfolio](https://console.zerodha.com/portfolio/holdings/)
-        """)
-    
-    # Initialize session state
-    if 'data_loaded' not in st.session_state:
-        st.session_state.portfolio_data, st.session_state.sectors_data = load_data()
-        st.session_state.data_loaded = True
-    
-    
-    uploaded_file = st.file_uploader(
-        "Drop your holdings Excel file here",
-        type=['xlsx'],
-        help="Export and upload your holdings data from Zerodha Console"
-    )
 
-    if uploaded_file:
-        try:
-            df = pd.read_excel(uploaded_file, header=22, usecols="B:L")
-            if set(REQUIRED_COLUMNS).issubset(df.columns):
-                st.session_state.portfolio_data = df
-                st.success("Successfully loaded your portfolio!")
-            else:
-                st.error("Invalid file format. Using sample data instead.")
-        except Exception as e:
-            st.error(f"Error loading file: {e}")
-            st.info("Using sample data for demonstration")
+    # The active portfolio is either one imported this session (or loaded from
+    # local disk) via the import page, or the committed sample.
+    active = portfolio_store.get_active()
+    if active is not None:
+        st.caption(
+            f"Viewing **{portfolio_store.active_label() or 'your portfolio'}** — "
+            f"{len(active)} holdings. Re-import from the Import page to replace it."
+        )
+        df = holdings.to_core(active)
     else:
-        st.info("Currently showing sample portfolio data. Upload your holdings file to see your actual portfolio.")
+        st.info(
+            "Showing the **sample portfolio**. Bring your own from the "
+            "**Import Portfolio** page."
+        )
+        df = load_sample_holdings()
 
-    # Process Data
-    df = process_portfolio(st.session_state.portfolio_data)
-    
+    sectors_data = load_sectors()
+
     # Symbol Selection in Sidebar
     symbols = st.sidebar.multiselect(
         "Select symbols",
@@ -761,7 +725,7 @@ def main():
     filtered_df = df.loc[df["Symbol"].isin(symbols)]
     df_with_sectors = pd.merge(
         filtered_df,
-        st.session_state.sectors_data,
+        sectors_data,
         on='Symbol',
         how='left'
     )

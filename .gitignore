@@ -1,6 +1,9 @@
 /.streamlit/secrets.toml
 /pages/test.py
 /snapshots/
+# Local-only client data and saved import mappings (privacy: never committed).
+/portfolios/
+/profiles/
 __pycache__
 .venv/
 .pytest_cache/

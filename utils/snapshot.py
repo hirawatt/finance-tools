@@ -383,15 +383,26 @@ def symbols_from_index_dir(directory: Path | str) -> List[str]:
 
 
 def symbols_from_holdings(path: Path | str) -> List[str]:
-    """Symbols in a Zerodha-format holdings export (the sample portfolio)."""
-    frame = pd.read_excel(path, header=22, usecols="B:L")
-    if "Symbol" not in frame.columns:
+    """Symbols in a holdings export, in file order and uppercased.
+
+    Routed through the broker importer so the nightly universe job understands
+    any supported broker file, not just the Zerodha layout it was written for.
+    """
+    from utils.brokers import import_holdings
+    from utils.holdings import SymbolMaster
+
+    path = Path(path)
+    try:
+        result = import_holdings(path.read_bytes(), path.name, master=SymbolMaster())
+    except Exception:  # an unreadable or unmapped file contributes no symbols
         return []
-    return [
-        str(symbol).strip().upper()
-        for symbol in frame["Symbol"].dropna()
-        if str(symbol).strip()
-    ]
+
+    symbols: List[str] = []
+    for value in result.holdings.get("Symbol", []):
+        symbol = str(value).strip().upper()
+        if symbol and symbol not in symbols:
+            symbols.append(symbol)
+    return symbols
 
 
 def build_universe(

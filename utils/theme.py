@@ -658,6 +658,20 @@ def metric_row(items: Iterable[Sequence], columns: Optional[int] = None) -> None
         column.metric(label, value, delta=delta, **options)
 
 
+def printf_format(pattern: str) -> str:
+    """Translate a ``str.format`` number pattern into printf for ``column_config``.
+
+    ``"₹{:,.0f}"`` becomes ``"₹%,.0f"`` and ``"{:.1f}%"`` becomes ``"%.1f%%"``,
+    so call sites keep writing Python format strings while the cells are
+    formatted by :func:`st.column_config.NumberColumn` — the Streamlit-native
+    way; a pandas Styler is reserved for colouring only.
+    """
+    prefix, _, rest = pattern.partition("{")
+    spec, _, suffix = rest.partition("}")
+    # Drop the format spec's leading ":" ("{:,.0f}" -> ",.0f").
+    return f"{prefix}%{spec.removeprefix(':')}" + suffix.replace("%", "%%")
+
+
 def card(
     icon: str,
     title: str,

@@ -8,6 +8,11 @@
 .pytest_cache/
 snapshots/
 
+# Client portfolios and saved import mappings are local user data: never bake
+# them into the published image.
+portfolios/
+profiles/
+
 # Secrets never belong in an image; pass SNAPSHOT_* env vars or mount the file.
 .streamlit/secrets.toml
 

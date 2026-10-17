@@ -124,6 +124,13 @@ def home() -> None:
 
     cards = (
         {
+            "key": "td-card-import",
+            "icon": "upload_file",
+            "title": "Import Portfolio",
+            "body": "Bring holdings from Zerodha, Groww, Dhan or Angel One.",
+            "page": "pages/portfolio_import.py",
+        },
+        {
             "key": "td-card-copilot",
             "icon": "rocket_launch",
             "title": "Co-Pilot",
@@ -189,6 +196,7 @@ def home() -> None:
 # from the filename, which keeps deep links stable across restarts.
 PAGES = [
     st.Page(home, title="Home", icon=":material/space_dashboard:", default=True),
+    st.Page("pages/portfolio_import.py", title="Import Portfolio", icon=":material/upload_file:"),
     st.Page("pages/portfolio_analysis.py", title="Co-Pilot", icon=":material/rocket_launch:"),
     st.Page("pages/stocks_to_trade.py", title="Idea Generation", icon=":material/lightbulb:"),
     st.Page("pages/surprises.py", title="Due Diligence", icon=":material/troubleshoot:"),

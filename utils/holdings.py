@@ -320,7 +320,7 @@ def match_summary(frame: pd.DataFrame) -> Dict[str, int]:
 # --------------------------------------------------------------------------- #
 # Derived values and the canonical frame
 # --------------------------------------------------------------------------- #
-def _to_number(value) -> float:
+def to_number(value) -> float:
     """Parse a broker number cell: ``₹1,234.50``, ``(120)``, ``—``, ``-``."""
     if value is None or isinstance(value, bool):
         return float("nan")
@@ -340,7 +340,7 @@ def _to_number(value) -> float:
 
 def numeric(series: pd.Series) -> pd.Series:
     """Coerce a possibly-formatted column to floats."""
-    return series.map(_to_number) if series is not None else pd.Series(dtype=float)
+    return series.map(to_number) if series is not None else pd.Series(dtype=float)
 
 
 def derive_values(
@@ -359,16 +359,20 @@ def derive_values(
     average = numeric(out.get("Average Price", pd.Series(index=out.index, dtype=float)))
     file_price = numeric(out.get("Current Price", pd.Series(index=out.index, dtype=float)))
 
-    out["Total Quantity"] = quantity
-    out["Average Price"] = average
-    out["Invested Value"] = quantity * average
-
-    current = file_price.copy()
-    current = current.fillna(average)  # no file price? the cost basis is a floor
+    # Current price: the file's own, else the cost basis, else the snapshot.
+    current = file_price.fillna(average)
     if prices:
-        looked_up = out["Symbol"].map(lambda symbol: prices.get(symbol, float("nan")))
-        looked_up = numeric(looked_up)
+        looked_up = numeric(out["Symbol"].map(lambda symbol: prices.get(symbol, float("nan"))))
         current = looked_up.fillna(current)
+
+    # Cost basis: a depository CAS carries no purchase price, so fall back to the
+    # current price there — the value is right and the P&L reads as flat, which
+    # the import page says out loud rather than reporting NaN.
+    cost = average.fillna(current)
+
+    out["Total Quantity"] = quantity
+    out["Average Price"] = cost
+    out["Invested Value"] = quantity * cost
     out["Current Price"] = current
     out["Current Value"] = quantity * current
     out["Unrealized P&L"] = out["Current Value"] - out["Invested Value"]

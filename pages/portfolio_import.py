@@ -101,6 +101,15 @@ def _render_export_help() -> None:
             if profile.export_url:
                 st.markdown(f"[Open {profile.name}]({profile.export_url})")
 
+    with st.expander("Depository CAS — every broker at once"):
+        st.markdown(
+            "A Consolidated Account Statement from [CDSL](https://www.cdslindia.com/) "
+            "or [NSDL](https://nsdl.co.in/) lists every demat account and broker in "
+            "one PDF. It is password-protected, usually by your PAN plus date of "
+            "birth. A CAS carries no purchase price, so invested value and P&L read "
+            "flat — the positions and weights are still right."
+        )
+
 
 def _render_saved() -> None:
     """Portfolios saved to this machine, with a one-click load."""
@@ -125,11 +134,34 @@ def _render_saved() -> None:
             st.rerun()
 
 
+def _import_statement(data: bytes, filename: str) -> None:
+    """A depository CAS PDF — the client book from a single file."""
+    st.info(
+        "Reading a depository **CAS** statement: one PDF covers every broker and "
+        "demat account at once."
+    )
+    with st.container(horizontal=True, vertical_alignment="bottom"):
+        password = st.text_input(
+            "Statement password",
+            type="password",
+            key="import-cas-password",
+            help="Usually your PAN plus date of birth, as the depository set it.",
+        )
+        client = st.text_input("Portfolio name", value="My portfolio", key="import_client")
+
+    result = brokers.import_holdings(
+        data, filename, master=symbol_master(), client=client, password=password
+    )
+    for warning in result.warnings:
+        st.warning(warning)
+    _render_preview(result, client)
+
+
 def main() -> None:
     theme.page_header(
         "Import Portfolio",
-        "Bring holdings from Zerodha, Groww, Dhan or Angel One — or any "
-        "spreadsheet with a symbol column.",
+        "Bring holdings from Zerodha, Groww, Dhan or Angel One — any spreadsheet "
+        "with a symbol column, or a depository CAS PDF.",
     )
     st.caption(
         "Your file is read in memory for this session. It is not uploaded "
@@ -138,8 +170,11 @@ def main() -> None:
 
     uploaded = st.file_uploader(
         "Drop a holdings export",
-        type=["xlsx", "xls", "csv"],
-        help="Zerodha Console, Groww, Dhan and Angel One exports are detected automatically.",
+        type=["xlsx", "xls", "csv", "pdf"],
+        help=(
+            "Zerodha Console, Groww, Dhan and Angel One exports are detected "
+            "automatically; a depository CAS statement comes as a PDF."
+        ),
     )
     if uploaded is None:
         _render_export_help()
@@ -148,6 +183,11 @@ def main() -> None:
 
     data = uploaded.getvalue()
     filename = uploaded.name
+
+    if filename.lower().endswith(".pdf"):
+        _import_statement(data, filename)
+        return
+
     detected = brokers.detect_profile(data, filename)
     options = _profile_options()
 

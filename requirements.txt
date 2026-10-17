@@ -23,15 +23,21 @@ certifi==2026.7.22
     #   curl-cffi
     #   requests
 cffi==2.1.1
-    # via curl-cffi
+    # via
+    #   cryptography
+    #   curl-cffi
 charset-normalizer==3.5.2
-    # via requests
+    # via
+    #   pdfminer-six
+    #   requests
 click==8.5.0
     # via
     #   streamlit
     #   uvicorn
 contourpy==1.4.0
     # via matplotlib
+cryptography==50.0.2
+    # via pdfminer-six
 curl-cffi==0.16.3
     # via yfinance
 cycler==0.12.1
@@ -103,11 +109,16 @@ pandas==3.0.6
     #   seaborn
     #   streamlit
     #   yfinance
+pdfminer-six==20260107
+    # via pdfplumber
+pdfplumber==0.11.10
+    # via finance-tools
 peewee==4.5.3
     # via yfinance
 pillow==12.3.0
     # via
     #   matplotlib
+    #   pdfplumber
     #   streamlit
 platformdirs==4.13.3
     # via yfinance
@@ -127,6 +138,8 @@ pydeck==0.9.3
     # via streamlit
 pyparsing==3.3.3
     # via matplotlib
+pypdfium2==5.14.0
+    # via pdfplumber
 python-dateutil==2.9.0.post0
     # via
     #   botocore

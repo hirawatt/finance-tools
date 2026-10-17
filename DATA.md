@@ -3,6 +3,7 @@
 |Data|Source|Used|
 |:-:|:-:|:-:|
 |Broker holdings|[Zerodha Console](https://console.zerodha.com/portfolio/holdings/), Groww, Dhan and Angel One holdings exports|Yes — read by `utils/brokers/`, resolved to NSE symbols via `data/stock-sector.csv`|
+|Depository CAS|[CDSL](https://www.cdslindia.com/) / [NSDL](https://nsdl.co.in/) Consolidated Account Statement (PDF)|Yes — `utils/brokers/cas.py` reads the holdings table across every demat account|
 |India Life Expectancy|[macrotrends.net](https://www.macrotrends.net/countries/IND/india/life-expectancy)|Yes — in the portfolio allocation process|
 |Stock Sector Data|[Screener Screen - Export](https://www.screener.in/screen/raw/?sort=&order=&source=&query=Market+Capitalization+) and [ValueResearch](https://www.valueresearchonline.com/stocks/selector/?mcap=0to&custom-cols=ret1d%2Cpl52w%2Cph52w%2Cmcap%2Centval)|Yes|
 |FPI Sector-wise Investment Data|[NSDL FPI](https://www.fpi.nsdl.co.in/web/StaticReports/Fortnightly_Sector_wise_FII_Investment_Data/FIIInvestSector_May312022.html)|No|

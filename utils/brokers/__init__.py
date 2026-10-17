@@ -13,6 +13,7 @@ on the right reader.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Mapping, Optional
 
 import pandas as pd
@@ -95,6 +96,58 @@ class BrokerImport:
         return holdings.to_core(self.holdings)
 
 
+def _finalise(
+    mapped: pd.DataFrame,
+    *,
+    profile_name: str,
+    filename: str,
+    master: Optional[holdings.SymbolMaster],
+    aliases: Optional[Mapping[str, str]],
+    client: str,
+    prices: Optional[Mapping[str, float]],
+    detected: bool,
+    warnings: List[str],
+) -> BrokerImport:
+    """Resolve, value and canonicalise a mapped frame — the shared tail."""
+    if client:
+        mapped["Client"] = client
+
+    has_key = mapped.reindex(columns=["Symbol", "ISIN", "Company"]).notna().any().any()
+    if not has_key:
+        warnings.append("No symbol, ISIN or company column was recognised in this file.")
+
+    resolved = holdings.resolve(mapped, master or holdings.SymbolMaster(), aliases=aliases)
+    derived = holdings.derive_values(resolved, prices)
+    canonical = holdings.canonical(derived)
+
+    unmatched = int(canonical["Symbol"].astype(str).str.strip().eq("").sum())
+    if unmatched:
+        warnings.append(f"{unmatched} row(s) have no symbol and were left out of the totals.")
+
+    return BrokerImport(
+        holdings=canonical,
+        resolved=derived,
+        profile=profile_name,
+        source=filename,
+        detected=detected,
+        summary=holdings.match_summary(derived),
+        warnings=warnings,
+    )
+
+
+def _empty_import(profile_name: str, filename: str, warning: str) -> BrokerImport:
+    """An empty import carrying the reason, so the page can explain it."""
+    return BrokerImport(
+        holdings=holdings.canonical(pd.DataFrame()),
+        resolved=pd.DataFrame(),
+        profile=profile_name,
+        source=filename,
+        detected=False,
+        summary={status: 0 for status in holdings.MATCH_STATUSES},
+        warnings=[warning],
+    )
+
+
 def import_holdings(
     data: bytes,
     filename: str,
@@ -104,13 +157,21 @@ def import_holdings(
     aliases: Optional[Mapping[str, str]] = None,
     client: str = "",
     prices: Optional[Mapping[str, float]] = None,
+    password: str = "",
 ) -> BrokerImport:
     """Read one broker file into a resolved, canonical holdings frame.
 
     ``profile`` overrides detection; ``master`` is the symbol master (an empty one
     leaves symbols merely normalised); ``prices`` values the holdings from the
-    nightly snapshot instead of the broker's own probably-stale price.
+    nightly snapshot instead of the broker's own probably-stale price. A ``.pdf``
+    is read as a depository CAS statement, which takes ``password``.
     """
+    if Path(filename or "").suffix.lower() == ".pdf":
+        return _import_cas(
+            data, filename, password=password, master=master, aliases=aliases,
+            client=client, prices=prices,
+        )
+
     warnings: List[str] = []
     detected = profile is None
     if profile is None:
@@ -124,43 +185,60 @@ def import_holdings(
     try:
         mapped = parse(data, filename, profile)
     except ValueError as error:
-        # No table at all: return an empty import with the reason, so the page
-        # can explain it rather than blowing up.
-        return BrokerImport(
-            holdings=holdings.canonical(pd.DataFrame()),
-            resolved=pd.DataFrame(),
-            profile=profile.name,
-            source=filename,
-            detected=False,
-            summary={status: 0 for status in holdings.MATCH_STATUSES},
-            warnings=[str(error)],
-        )
-    if client:
-        mapped["Client"] = client
+        return _empty_import(profile.name, filename, str(error))
 
-    has_key = mapped.reindex(columns=["Symbol", "ISIN", "Company"]).notna().any().any()
-    if not has_key:
-        warnings.append(
-            "No symbol, ISIN or company column was recognised in this file."
-        )
-
-    resolved = holdings.resolve(mapped, master or holdings.SymbolMaster(), aliases=aliases)
-    derived = holdings.derive_values(resolved, prices)
-    canonical = holdings.canonical(derived)
-
-    unmatched = int(canonical["Symbol"].astype(str).str.strip().eq("").sum())
-    if unmatched:
-        warnings.append(f"{unmatched} row(s) have no symbol and were left out of the totals.")
-
-    return BrokerImport(
-        holdings=canonical,
-        resolved=derived,
-        profile=profile.name,
-        source=filename,
+    return _finalise(
+        mapped,
+        profile_name=profile.name,
+        filename=filename,
+        master=master,
+        aliases=aliases,
+        client=client,
+        prices=prices,
         detected=detected and profile is not GENERIC,
-        summary=holdings.match_summary(derived),
         warnings=warnings,
     )
+
+
+def _import_cas(
+    data: bytes,
+    filename: str,
+    *,
+    password: str,
+    master: Optional[holdings.SymbolMaster],
+    aliases: Optional[Mapping[str, str]],
+    client: str,
+    prices: Optional[Mapping[str, float]],
+) -> BrokerImport:
+    """A depository CAS statement: one PDF, every broker."""
+    from utils.brokers import cas
+
+    try:
+        mapped = cas.extract(data, password=password)
+    except ValueError as error:
+        return _empty_import("CAS", filename, str(error))
+
+    warnings = [
+        "A CAS carries no purchase price, so invested value and P&L are shown "
+        "flat against the statement's value."
+    ]
+    result = _finalise(
+        mapped,
+        profile_name="CAS",
+        filename=filename,
+        master=master,
+        aliases=aliases,
+        client=client,
+        prices=prices,
+        detected=True,
+        warnings=warnings,
+    )
+    if result.holdings.empty:
+        result.warnings.append(
+            "No holdings rows were read from the statement. CAS layouts vary; "
+            "check the file is the holdings statement and not a summary."
+        )
+    return result
 
 
 __all__ = [

@@ -185,6 +185,7 @@ instead of building it on the host.
 
 - [x] Import holdings from a broker — Zerodha, Groww, Dhan and Angel One are detected from the file's headers; any other sheet maps through the generic column editor
 - [x] ISIN-first symbol resolution, so the same stock imported from two brokers merges into one position
+- [x] Depository CAS (CDSL/NSDL) PDF import — one statement covers every broker and demat account at once
 - [x] Integration with [quantstats](https://github.com/ranaroussi/quantstats)
 - [x] Advanced Portfolio Analytics
   - [x] Sector & Stock Weightage

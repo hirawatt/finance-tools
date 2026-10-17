@@ -13,6 +13,11 @@ you commit.
 - **Angel One** — Portfolio → Holdings → download the statement.
 - **Anything else** — drop the sheet, pick *Generic*, and point each field at the
   column it lives in; the mapping can be saved and reused.
+- **Every broker at once** — drop a **CAS** PDF (Consolidated Account Statement
+  from [CDSL](https://www.cdslindia.com/) or [NSDL](https://nsdl.co.in/)) and
+  enter its password (usually PAN + date of birth). One statement covers every
+  demat account and broker. A CAS has no purchase price, so invested value and
+  P&L read flat — positions and weights are still exact.
 
 Symbols are matched by **ISIN** first (the same key at every broker), then by the
 trading symbol, then by company name. Rows that cannot be matched are listed —

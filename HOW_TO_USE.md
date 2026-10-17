@@ -69,3 +69,31 @@ holdings from Yahoo Finance and NSE:
 
 You can change the lookback period; symbols without enough history are skipped
 automatically.
+
+## Due Diligence
+
+**Due Diligence** screens the market — not just your holdings — for surprises,
+using the nightly snapshot only. There is no live fetch on this page: an
+after-close job writes the data once, and every screen reads it, so the results
+are as fresh as the last snapshot and never depend on a provider being up.
+
+Pick an **Universe** in the sidebar (a curated watchlist or all of them), then a
+check:
+
+- **Options pricing mismatch** — put-call parity breaks in an index's end-of-day
+  option chain: a strike whose `strike + call - put` sits away from its expiry's
+  forward (the futures close where one traded, else the median of its liquid
+  strikes). Index options are European, so a gap is a real mispricing or a stale
+  quote, not an early-exercise artifact.
+- **Unusual moves in pairs** — same-industry pairs whose hedged log-price spread
+  has stretched beyond a z-score threshold; a rich leg against a cheap one is a
+  relative-value candidate to investigate.
+- **Unusual volume in stocks** — cash-market names trading far above their own
+  trailing average, with the session's return and turnover so a spike can be read
+  against the price move.
+- **Unusual volume in options** — the strikes with the heaviest fresh positioning
+  (change in open interest and volume, expressed as a buildup ratio), plus the
+  put-call ratio by expiry.
+
+If the nightly job has not covered a universe yet, the page shows an empty state
+and says so rather than reaching for live data.

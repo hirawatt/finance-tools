@@ -215,6 +215,14 @@ instead of building it on the host.
 - [x] Branded home page: app mark and name, an illustrated hero, a four-step workflow strip, headline stats and the tool cards, with a README screenshot
 - [x] Fix: the theme stylesheet was silently dropped by Streamlit's sanitiser (a tag-like sequence in a CSS comment), leaving every page unstyled
 
+### Due Diligence
+
+- [x] Snapshot-only page: every screen reads the after-close snapshot and never fetches live
+- [x] Cash-market volume anomalies against each symbol's own trailing average
+- [x] Put-call parity breaks in index options, using the F&O bhavcopy's futures close as the forward
+- [x] Fresh positioning in the derivatives book (change in open interest and volume) with the put-call ratio
+- [x] Same-industry pairs whose hedged log spread has stretched
+
 ## Portfolio Analysis Flow
 
 ```mermaid

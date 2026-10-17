@@ -19,6 +19,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from utils import snapshot
+from utils.options import OPTION_COLUMNS
 
 NOW = datetime(2026, 10, 15, 12, 0, tzinfo=timezone.utc)
 TODAY = date(2026, 10, 15)
@@ -173,6 +174,24 @@ class TestPriceFrames:
         assert wide.empty and benchmark is None
         wide, benchmark = snapshot.frame_to_prices(pd.DataFrame({"nonsense": [1]}))
         assert wide.empty and benchmark is None
+
+
+class TestVolumeFrames:
+    def test_round_trip(self):
+        volumes = pd.DataFrame(
+            {"AAA": [1.0, 2.0, 3.0], "BBB": [4.0, 5.0, 6.0]}, index=_business_days(3)
+        )
+        wide = snapshot.frame_to_volumes(snapshot.volumes_to_frame(volumes))
+        pd.testing.assert_frame_equal(wide, volumes, check_freq=False)
+
+    def test_nan_gaps_are_dropped(self):
+        volumes = pd.DataFrame({"AAA": [1.0, np.nan, 3.0]}, index=_business_days(3))
+        assert len(snapshot.volumes_to_frame(volumes)) == 2
+
+    def test_empty_inputs(self):
+        assert snapshot.volumes_to_frame(None).empty
+        assert snapshot.frame_to_volumes(pd.DataFrame()).empty
+        assert snapshot.frame_to_volumes(pd.DataFrame({"nonsense": [1]})).empty
 
 
 class TestEarningsFrames:
@@ -657,7 +676,7 @@ class TestLoadSurveillance:
 class TestFetchUniverseData:
     def test_records_failures_and_keeps_the_rest(self, monkeypatch):
         monkeypatch.setattr(
-            snapshot, "fetch_price_history",
+            snapshot, "fetch_price_and_volume_history",
             lambda *a, **k: (_ for _ in ()).throw(RuntimeError("yahoo down")),
         )
         monkeypatch.setattr(
@@ -672,18 +691,105 @@ class TestFetchUniverseData:
                             lambda symbols, today=None: pd.DataFrame(columns=snapshot.EARNINGS_COLUMNS))
         monkeypatch.setattr(snapshot, "fetch_surveillance",
                             lambda: pd.DataFrame(columns=snapshot.SURVEILLANCE_COLUMNS))
+        monkeypatch.setattr(snapshot, "fetch_latest_fo_bhavcopy",
+                            lambda today=None: pd.DataFrame(columns=OPTION_COLUMNS))
 
         frames, failures = snapshot.fetch_universe_data(["AAA"])
 
         assert "prices" not in frames
+        assert "volumes" not in frames
         assert failures["prices"] == ["RuntimeError: yahoo down"]
-        assert set(frames) == {"company_data", "default_risk", "earnings", "surveillance"}
+        assert set(frames) == {"company_data", "default_risk", "earnings", "surveillance", "options"}
         assert list(frames["company_data"].columns) == ["Symbol", "Market cap"]
+
+    def test_one_price_pass_stores_prices_and_volumes(self, monkeypatch):
+        index = _business_days(3)
+        prices = pd.DataFrame({"AAA": [1.0, 2.0, 3.0]}, index=index)
+        volumes = pd.DataFrame({"AAA": [100.0, 200.0, 300.0]}, index=index)
+        calls = []
+
+        def fake(symbols, period="1y", benchmark=None):
+            calls.append(1)
+            return prices, None, volumes
+
+        monkeypatch.setattr(snapshot, "fetch_price_and_volume_history", fake)
+        monkeypatch.setattr(snapshot, "fetch_company_data",
+                            lambda symbols, fields=None: pd.DataFrame(index=pd.Index([], name="Symbol")))
+        monkeypatch.setattr(snapshot, "fetch_default_risk", lambda symbols, caps=None: pd.DataFrame(
+            index=pd.Index([], name="Symbol")))
+        monkeypatch.setattr(snapshot, "fetch_earnings_calendar",
+                            lambda symbols, today=None: pd.DataFrame(columns=snapshot.EARNINGS_COLUMNS))
+        monkeypatch.setattr(snapshot, "fetch_surveillance",
+                            lambda: pd.DataFrame(columns=snapshot.SURVEILLANCE_COLUMNS))
+        monkeypatch.setattr(snapshot, "fetch_latest_fo_bhavcopy",
+                            lambda today=None: pd.DataFrame(columns=OPTION_COLUMNS))
+
+        frames, failures = snapshot.fetch_universe_data(["AAA"])
+
+        assert calls == [1]  # a single upstream pass
+        assert set(frames["prices"]["Close"]) == {1.0, 2.0, 3.0}
+        assert set(frames["volumes"]["Volume"]) == {100.0, 200.0, 300.0}
+        assert "prices" not in failures
 
 
 # --------------------------------------------------------------------------- #
 # App integration
 # --------------------------------------------------------------------------- #
+class TestSnapshotOnlyLoaders:
+    """The Due Diligence readers never reach a live provider."""
+
+    def _seed_snapshot(self, store):
+        prices = _prices(columns=("AAA", "BBB"), periods=10)
+        volumes = pd.DataFrame(
+            {
+                "AAA": np.arange(1.0, 11.0),
+                "BBB": np.arange(11.0, 21.0),
+            },
+            index=prices.index,
+        )
+        _seed(
+            store,
+            prices=snapshot.prices_to_frame(prices, None),
+            volumes=snapshot.volumes_to_frame(volumes),
+        )
+        return prices, volumes
+
+    def test_prices_come_from_the_snapshot(self, store, monkeypatch):
+        prices, _ = self._seed_snapshot(store)
+        monkeypatch.setattr(snapshot, "fetch_price_history", _forbid_live())
+        loaded = snapshot.load_snapshot_prices(["AAA"], period="1y", store=store, now=NOW)
+        assert list(loaded.columns) == ["AAA"]
+
+    def test_volumes_come_from_the_snapshot(self, store, monkeypatch):
+        _, volumes = self._seed_snapshot(store)
+        monkeypatch.setattr(snapshot, "fetch_price_history", _forbid_live())
+        loaded = snapshot.load_volumes(["BBB"], period="1y", store=store, now=NOW)
+        assert list(loaded.columns) == ["BBB"]
+        np.testing.assert_allclose(loaded["BBB"].to_numpy(), volumes["BBB"].to_numpy())
+
+    def test_missing_snapshot_is_empty_not_live(self, store):
+        assert snapshot.load_snapshot_prices(["AAA"], store=store, now=NOW).empty
+        assert snapshot.load_volumes(["AAA"], store=store, now=NOW).empty
+        assert snapshot.load_options(store=store, now=NOW).empty
+
+    def test_options_filter_by_symbol(self, store):
+        options = pd.DataFrame(
+            [
+                {"Date": "2026-10-16", "Symbol": "NIFTY", "Expiry": "2026-11-26", "Strike": 100.0},
+                {"Date": "2026-10-16", "Symbol": "RELIANCE", "Expiry": "2026-11-26", "Strike": 2500.0},
+            ]
+        )
+        for column in OPTION_COLUMNS:
+            if column not in options.columns:
+                options[column] = np.nan
+        _seed(store, options=options[OPTION_COLUMNS])
+
+        loaded = snapshot.load_options(store=store, now=NOW, symbols=["nifty"])
+        assert list(loaded["Symbol"]) == ["NIFTY"]
+
+        assert set(snapshot.load_options(store=store, now=NOW)["Symbol"]) == {"NIFTY", "RELIANCE"}
+
+
 class TestCoPilotIntegration:
     """The Co-Pilot must serve its default view from the snapshot alone."""
 

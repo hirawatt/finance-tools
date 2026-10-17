@@ -77,8 +77,10 @@ def to_ticker(symbol: str) -> str:
     return f"{symbol}{NSE_SUFFIX}"
 
 
-def _extract_close(data: pd.DataFrame, tickers: Sequence[str]) -> pd.DataFrame:
-    """Normalise the result of ``yfinance.download`` into a close-price frame.
+def _extract_field(
+    data: pd.DataFrame, tickers: Sequence[str], field: str = "Close"
+) -> pd.DataFrame:
+    """Normalise a ``yfinance.download`` result into one field's frame.
 
     Depending on the number of tickers, yfinance returns either a flat frame
     (single ticker) or a ``(field, ticker)`` MultiIndex frame.
@@ -90,17 +92,48 @@ def _extract_close(data: pd.DataFrame, tickers: Sequence[str]) -> pd.DataFrame:
     if isinstance(columns, pd.MultiIndex):
         level0 = set(columns.get_level_values(0))
         level1 = set(columns.get_level_values(1))
-        if "Close" in level0:
-            return data["Close"]
-        if "Close" in level1:
-            return data.xs("Close", axis=1, level=1)
+        if field in level0:
+            return data[field]
+        if field in level1:
+            return data.xs(field, axis=1, level=1)
         return pd.DataFrame()
 
-    if "Close" not in columns:
+    if field not in columns:
         return pd.DataFrame()
-    close = data[["Close"]].copy()
-    close.columns = [tickers[0] if tickers else "Close"]
-    return close
+    extracted = data[[field]].copy()
+    extracted.columns = [tickers[0] if tickers else field]
+    return extracted
+
+
+def _extract_close(data: pd.DataFrame, tickers: Sequence[str]) -> pd.DataFrame:
+    """The close-price frame from a ``yfinance.download`` result."""
+    return _extract_field(data, tickers, "Close")
+
+
+def _download(downloads: Sequence[str], period: str) -> pd.DataFrame:
+    """One Yahoo download for every ticker, with the project's retry policy."""
+    import yfinance as yf
+
+    return retry_call(
+        lambda: yf.download(
+            list(downloads),
+            period=period,
+            interval="1d",
+            auto_adjust=True,
+            progress=False,
+            threads=True,
+        )
+    )
+
+
+def _tidy(extracted: pd.DataFrame, tickers: Sequence[str], clean: Sequence[str]) -> pd.DataFrame:
+    """Keep symbols that returned data, mapped back from tickers to NSE codes."""
+    if extracted is None or extracted.empty:
+        return pd.DataFrame()
+    resolved = {ticker: symbol for ticker, symbol in zip(tickers, clean)}
+    present = [ticker for ticker in tickers if ticker in extracted.columns]
+    wide = extracted[present].rename(columns=resolved)
+    return wide.loc[:, wide.notna().any(axis="index")]
 
 
 def fetch_price_history(
@@ -115,8 +148,6 @@ def fetch_price_history(
     when unavailable). Symbols without data are silently dropped so callers can
     decide what to do about them.
     """
-    import yfinance as yf
-
     # De-duplicate while preserving order.
     clean = [s for s in dict.fromkeys(str(s).strip() for s in symbols) if s]
     tickers = [to_ticker(s) for s in clean]
@@ -125,25 +156,11 @@ def fetch_price_history(
     if not downloads:
         return pd.DataFrame(), None
 
-    data = retry_call(
-        lambda: yf.download(
-            downloads,
-            period=period,
-            interval="1d",
-            auto_adjust=True,
-            progress=False,
-            threads=True,
-        )
-    )
-    close = _extract_close(data, downloads)
+    close = _extract_field(_download(downloads, period), downloads, "Close")
     if close.empty:
         return pd.DataFrame(), None
 
-    # Keep only symbols that actually returned data, mapped back to NSE codes.
-    resolved = {ticker: symbol for ticker, symbol in zip(tickers, clean)}
-    present = [t for t in tickers if t in close.columns]
-    prices = close[present].rename(columns=resolved)
-    prices = prices.loc[:, prices.notna().any(axis="index")]
+    prices = _tidy(close, tickers, clean)
 
     benchmark_series = None
     if benchmark and benchmark in close.columns:
@@ -151,6 +168,40 @@ def fetch_price_history(
         benchmark_series.name = BENCHMARK_NAME
 
     return prices, benchmark_series
+
+
+def fetch_price_and_volume_history(
+    symbols: Iterable[str],
+    period: str = "1y",
+    benchmark: Optional[str] = DEFAULT_BENCHMARK,
+) -> Tuple[pd.DataFrame, Optional[pd.Series], pd.DataFrame]:
+    """Closes, the benchmark and traded volume from a single Yahoo download.
+
+    The nightly snapshot wants both prices and volumes; pulling them in one pass
+    keeps the upstream request count down. Returns ``(prices, benchmark,
+    volumes)`` where ``volumes`` has one column per resolved symbol (the
+    benchmark, an index, is dropped as it carries no traded volume).
+    """
+    clean = [s for s in dict.fromkeys(str(s).strip() for s in symbols) if s]
+    tickers = [to_ticker(s) for s in clean]
+    downloads = tickers + ([benchmark] if benchmark else [])
+
+    if not downloads:
+        return pd.DataFrame(), None, pd.DataFrame()
+
+    data = _download(downloads, period)
+    close = _extract_field(data, downloads, "Close")
+    prices = _tidy(close, tickers, clean)
+
+    benchmark_series = None
+    if benchmark and not close.empty and benchmark in close.columns:
+        benchmark_series = close[benchmark].dropna()
+        benchmark_series.name = BENCHMARK_NAME
+
+    volume = _extract_field(data, downloads, "Volume")
+    volumes = _tidy(volume, tickers, clean)
+
+    return prices, benchmark_series, volumes
 
 
 def fetch_company_data(

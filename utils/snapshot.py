@@ -22,9 +22,11 @@ Layering:
 
 ``prices`` is stored long (``Date``/``Symbol``/``Close``) so coverage can be
 checked per symbol; the benchmark rides along under :data:`BENCHMARK_KEY`.
-``earnings`` deliberately stores the earnings *date* rather than the derived
-"days away", which is recomputed on read so a slightly stale snapshot does not
-report nonsense.
+``volumes`` is the same shape with ``Volume``, and ``options`` is the end-of-day
+per-strike chain (``utils.options``) the Due Diligence page reads. ``earnings``
+deliberately stores the earnings *date* rather than the derived "days away",
+which is recomputed on read so a slightly stale snapshot does not report
+nonsense.
 """
 
 from __future__ import annotations
@@ -47,15 +49,26 @@ from utils.market_data import (
     COMPANY_FIELDS,
     DEFAULT_BENCHMARK,
     fetch_company_data,
+    fetch_price_and_volume_history,
     fetch_price_history,
 )
+from utils.options import OPTION_COLUMNS, fetch_latest_fo_bhavcopy
 from utils.surveillance import SURVEILLANCE_COLUMNS, fetch_surveillance
 
 # Datasets written by the job, one Parquet blob each.
-DATASETS = ("prices", "company_data", "default_risk", "earnings", "surveillance")
+DATASETS = (
+    "prices",
+    "volumes",
+    "company_data",
+    "default_risk",
+    "earnings",
+    "surveillance",
+    "options",
+)
 
 MANIFEST_NAME = "manifest.json"
 PRICE_COLUMNS = ["Date", "Symbol", "Close"]
+VOLUME_COLUMNS = ["Date", "Symbol", "Volume"]
 
 # The benchmark is stored as just another symbol, keyed by its Yahoo ticker so it
 # cannot collide with an NSE code.
@@ -339,6 +352,28 @@ def frame_to_prices(
     return wide, benchmark
 
 
+def volumes_to_frame(volumes: Optional[pd.DataFrame]) -> pd.DataFrame:
+    """Long ``Date``/``Symbol``/``Volume`` frame from a wide volume frame."""
+    if volumes is None or volumes.empty:
+        return pd.DataFrame(columns=VOLUME_COLUMNS)
+    long = (
+        volumes.reset_index(names="Date")
+        .melt(id_vars="Date", var_name="Symbol", value_name="Volume")
+        .dropna(subset=["Volume"])
+    )
+    return long[VOLUME_COLUMNS]
+
+
+def frame_to_volumes(frame: Optional[pd.DataFrame]) -> pd.DataFrame:
+    """Rebuild the wide volume frame (index ``Date``, one column per symbol)."""
+    if frame is None or frame.empty or not set(VOLUME_COLUMNS).issubset(frame.columns):
+        return pd.DataFrame()
+
+    wide = frame.pivot(index="Date", columns="Symbol", values="Volume").sort_index()
+    wide.columns.name = None
+    return wide
+
+
 def earnings_to_frame(frame: Optional[pd.DataFrame]) -> pd.DataFrame:
     """Store the earnings *date* as text; "days away" is derived on read."""
     if frame is None or frame.empty:
@@ -459,12 +494,19 @@ def fetch_universe_data(
             caps = company["Market cap"].dropna().to_dict()
         return fetch_default_risk(symbols, pd.Series(caps, dtype=float)).reset_index()
 
-    capture(
-        "prices",
-        lambda: prices_to_frame(
-            *fetch_price_history(symbols, period=period, benchmark=benchmark)
-        ),
-    )
+    def price_and_volume() -> None:
+        """One Yahoo pass fills both the price and the volume datasets."""
+        prices, benchmark_series, volumes = fetch_price_and_volume_history(
+            symbols, period=period, benchmark=benchmark
+        )
+        frames["prices"] = prices_to_frame(prices, benchmark_series)
+        frames["volumes"] = volumes_to_frame(volumes)
+
+    try:
+        price_and_volume()
+    except Exception as exc:  # one provider outage must not cost the night
+        failures["prices"] = [f"{type(exc).__name__}: {exc}"]
+
     capture("company_data", company_data)
     capture("default_risk", default_risk)
     capture(
@@ -472,6 +514,7 @@ def fetch_universe_data(
         lambda: earnings_to_frame(fetch_earnings_calendar(symbols, today=today)),
     )
     capture("surveillance", fetch_surveillance)
+    capture("options", lambda: fetch_latest_fo_bhavcopy(today=today))
 
     return frames, failures
 
@@ -701,6 +744,75 @@ def load_surveillance(
     return fetch_surveillance()
 
 
+def load_snapshot_prices(
+    symbols: Iterable[str],
+    period: str = "1y",
+    store: Optional[object] = None,
+    now: Optional[datetime] = None,
+) -> pd.DataFrame:
+    """Snapshot-only closes, or an empty frame. Never falls back to a fetch.
+
+    The Due Diligence page is deliberately snapshot-only, so it can guarantee it
+    never touches a live provider; :func:`load_prices` keeps the live fallback
+    the Co-Pilot relies on.
+    """
+    requested = _clean_symbols(symbols)
+    snapshot = _fresh_snapshot(store, now)
+    if snapshot is None:
+        return pd.DataFrame()
+    prices, _ = frame_to_prices(snapshot.frames.get("prices"))
+    return _slice_symbols(prices, requested, period)
+
+
+def load_volumes(
+    symbols: Iterable[str],
+    period: str = "1y",
+    store: Optional[object] = None,
+    now: Optional[datetime] = None,
+) -> pd.DataFrame:
+    """Snapshot-only traded volume, or an empty frame. Never fetches."""
+    requested = _clean_symbols(symbols)
+    snapshot = _fresh_snapshot(store, now)
+    if snapshot is None:
+        return pd.DataFrame()
+    volumes = frame_to_volumes(snapshot.frames.get("volumes"))
+    return _slice_symbols(volumes, requested, period)
+
+
+def load_options(
+    store: Optional[object] = None,
+    now: Optional[datetime] = None,
+    symbols: Optional[Iterable[str]] = None,
+) -> pd.DataFrame:
+    """Snapshot-only end-of-day option chain, or an empty frame. Never fetches."""
+    snapshot = _fresh_snapshot(store, now)
+    if snapshot is None:
+        return pd.DataFrame(columns=OPTION_COLUMNS)
+    frame = snapshot.frames.get("options")
+    if frame is None or frame.empty:
+        return pd.DataFrame(columns=OPTION_COLUMNS)
+
+    frame = frame.reset_index(drop=True)
+    if symbols is not None:
+        wanted = {str(symbol).strip().upper() for symbol in symbols}
+        frame = frame[frame["Symbol"].isin(wanted)].reset_index(drop=True)
+    return frame
+
+
+def _slice_symbols(
+    wide: pd.DataFrame, requested: Sequence[str], period: str
+) -> pd.DataFrame:
+    """Resolve requested symbols against a snapshot frame and slice the period."""
+    if wide is None or wide.empty:
+        return pd.DataFrame()
+    mapping, _ = _resolve(requested, wide.columns)
+    if not mapping:
+        return pd.DataFrame()
+    covered = _slice_period(wide[[mapping[symbol] for symbol in mapping]], period).copy()
+    covered.columns = list(mapping)
+    return covered.sort_index()
+
+
 def _take_rows(
     stored: pd.DataFrame, mapping: Mapping[str, str], columns: Optional[Sequence[str]] = None
 ) -> pd.DataFrame:
@@ -721,20 +833,26 @@ __all__ = [
     "S3Store",
     "Snapshot",
     "SnapshotConfig",
+    "VOLUME_COLUMNS",
     "build_universe",
     "earnings_to_frame",
     "fetch_universe_data",
     "frame_to_earnings",
     "frame_to_prices",
+    "frame_to_volumes",
     "is_fresh",
     "load_company_data",
     "load_default_risk",
     "load_earnings",
+    "load_options",
     "load_prices",
+    "load_snapshot_prices",
     "load_surveillance",
+    "load_volumes",
     "prices_to_frame",
     "read_snapshot",
     "symbols_from_holdings",
     "symbols_from_index_dir",
+    "volumes_to_frame",
     "write_snapshot",
 ]

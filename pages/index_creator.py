@@ -1,145 +1,182 @@
-import streamlit as st
-import pandas as pd
-import os
+"""Custom index creator and watchlists.
+
+A watchlist is a one-line CSV of NSE symbols under ``indices/``; this page edits
+one, moves watchlists in and out as CSVs, and turns the current list into a
+TradingView symbol string.
+"""
+
+import csv
 from pathlib import Path
 from typing import List, Optional
-import csv
 
-from utils.custom_indices import INDEX_PATH, get_safe_path, custom_indices as get_indices
+import pandas as pd
+import streamlit as st
 
-# Constants
-DEFAULT_EXCHANGE = "NSE"
+from utils import theme
+from utils.custom_indices import get_safe_path, custom_indices as get_indices
+
 
 @st.cache_data
 def get_custom_indices() -> List[str]:
     """Get list of custom indices"""
     return get_indices()
 
-@st.cache_data
-def load_instruments() -> pd.DataFrame:
-    instruments = pd.read_csv("instruments")
-    return instruments
 
 @st.cache_data
-def filter_tradable_stocks(instruments: pd.DataFrame, exchange: str) -> pd.DataFrame:
-    """Filter tradable stocks based on criteria"""
-    return instruments[
-        (instruments["exchange"] == exchange) &
-        (instruments["instrument_type"] == "EQ") &
-        (instruments["lot_size"] == 1) &
-        (instruments["tick_size"] == 0.05)
-    ]
+def load_instruments() -> pd.DataFrame:
+    """The Kite instruments dump, loaded once per process."""
+    return pd.read_csv("instruments")
+
+
+def resolve_watchlist(index_file: str) -> Optional[Path]:
+    """The existing file for ``index_file``, or ``None`` when it is unusable."""
+    path = get_safe_path(index_file)
+    return path if path and path.exists() else None
+
 
 def load_index_symbols(index_file: str) -> Optional[List[str]]:
     """Load symbols from index file with error handling"""
-    safe_path = get_safe_path(index_file)
-    if not safe_path or not safe_path.exists():
-        st.error(f"Error: Invalid index file or file not found.")
+    path = resolve_watchlist(index_file)
+    if path is None:
+        st.error("Error: Invalid index file or file not found.")
         return None
 
     try:
-        with open(safe_path) as f:
+        with open(path) as f:
             reader = csv.reader(f)
             return next(reader)  # Get first row
     except (FileNotFoundError, StopIteration) as e:
         st.error(f"Error loading index file: {e}")
         return None
 
+
+def save_index_symbols(index_file: str, symbols: List[str]) -> None:
+    """Write ``symbols`` back to the watchlist, reporting why if it fails.
+
+    Saving intentionally does not require the file to exist: the path is what
+    matters, and ``open(..., "w")`` recreates a watchlist that was removed.
+    """
+    path = get_safe_path(index_file)
+    if not path:
+        st.error("Invalid index file path.")
+        return
+
+    try:
+        with open(path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(symbols)
+        st.success("Changes saved successfully!")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Error saving changes: {e}")
+
+
 def create_tv_index_string(symbols: List[str]) -> str:
     """Create TradingView index string"""
     return f"NSE:{'+NSE:'.join(symbols)}"
 
-def handle_file_operations(watchlist: str):
-    """Handle file upload and download operations"""
-    col1, col2 = st.columns(2)
-    
-    # File Upload
-    uploaded_file = col1.file_uploader(
+
+def upload_watchlist() -> None:
+    """Read an uploaded watchlist CSV and show what it contains."""
+    uploaded_file = st.file_uploader(
         "Upload watchlist (CSV)",
         type=['csv'],
         help="Upload a CSV file with stock symbols"
     )
-    
-    if uploaded_file:
-        try:
-            # Process uploaded file
-            df = pd.read_csv(uploaded_file)
-            st.success("File uploaded successfully!")
-            st.dataframe(df)
-        except Exception as e:
-            st.error(f"Error processing file: {e}")
-    
-    # File Download
-    safe_path = get_safe_path(watchlist)
-    if safe_path and safe_path.exists():
-        try:
-            with open(safe_path, "rb") as f:
-                col2.download_button(
-                    label="Download current watchlist",
-                    data=f,
-                    file_name=f"{watchlist}.csv",
-                    mime='text/csv',
-                )
-        except FileNotFoundError:
-            col2.error("Watchlist file not found")
-    else:
-        col2.error("Watchlist file not found or invalid")
+    if not uploaded_file:
+        return
 
-def main():
-    st.title("Custom Index Creator & Watchlists")
-    # Initialize session state
+    try:
+        df = pd.read_csv(uploaded_file)
+        st.success("File uploaded successfully!")
+        st.dataframe(df)
+    except Exception as e:
+        st.error(f"Error processing file: {e}")
+
+
+def download_watchlist(index_file: str) -> None:
+    """Offer the current watchlist as a CSV download."""
+    path = resolve_watchlist(index_file)
+    if path is None:
+        st.error("Watchlist file not found or invalid")
+        return
+
+    try:
+        with open(path, "rb") as f:
+            st.download_button(
+                label="Download current watchlist",
+                data=f,
+                file_name=f"{index_file}.csv",
+                mime='text/csv',
+            )
+    except FileNotFoundError:
+        st.error("Watchlist file not found")
+
+
+def instruments() -> pd.DataFrame:
+    """The instruments dump, cached in session state as a readiness check."""
     if "instruments_df" not in st.session_state:
         st.session_state.instruments_df = load_instruments()
-    
-    # Use cached data
-    instruments_df = st.session_state.instruments_df
+    return st.session_state.instruments_df
+
+
+def edit_watchlist(index_file: str) -> Optional[List[str]]:
+    """Show the constituents and save them when the selection changed."""
+    constituents = load_index_symbols(index_file)
+    if not constituents:
+        return None
+
+    selected_stocks = st.multiselect(
+        "Manage Stocks in Selected Index/Watchlist",
+        constituents,
+        constituents,
+        help="Select/deselect stocks to modify the index"
+    )
+
+    if selected_stocks != constituents:
+        st.warning("You have modified the selection. Save changes?")
+        if st.button("Save Changes"):
+            save_index_symbols(index_file, selected_stocks)
+
+    return constituents
+
+
+def tradingview_panel(constituents: Optional[List[str]]) -> None:
+    """Where to paste the watchlist in TradingView, for the sidebar."""
+    with st.sidebar:
+        theme.section_header("TradingView Integration")
+        if constituents:
+            st.info("Copy this symbol to TradingView:")
+            st.code(create_tv_index_string(constituents), language="text")
+
+
+def main():
+    theme.page_header(
+        "Custom Index Creator & Watchlists",
+        "Build, edit and export the watchlists the other desks read.",
+    )
+
+    instruments_df = instruments()
     if instruments_df.empty:
         st.stop()
-    
-    # Index Selection
-    indices_list = get_custom_indices()
+
     index_file = st.radio(
         "Select Index/Watchlist",
-        indices_list,
+        get_custom_indices(),
         horizontal=True,
     )
 
-    # Load and Display Index Constituents
-    if constituents := load_index_symbols(index_file):
-        selected_stocks = st.multiselect(
-            "Manage Stocks in Selected Index/Watchlist",
-            constituents,
-            constituents,
-            help="Select/deselect stocks to modify the index"
-        )
-        
-        if selected_stocks != constituents:
-            st.warning("You have modified the selection. Save changes?")
-            if st.button("Save Changes"):
-                safe_path = get_safe_path(index_file)
-                if safe_path:
-                    try:
-                        with open(safe_path, "w", newline="") as f:
-                            writer = csv.writer(f)
-                            writer.writerow(selected_stocks)
-                        st.success("Changes saved successfully!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error saving changes: {e}")
-                else:
-                    st.error("Invalid index file path.")
-    
-    # File Operations
-    st.markdown("### File Operations")
-    handle_file_operations(index_file)
-    
-    # TradingView Integration
-    with st.sidebar:
-        st.subheader("TradingView Integration")
-        if constituents:
-            tv_symbol = create_tv_index_string(constituents)
-            st.info("Copy this symbol to TradingView:")
-            st.code(tv_symbol, language="text")
+    constituents = edit_watchlist(index_file)
+
+    theme.section_header("File Operations")
+    upload_column, download_column = st.columns(2)
+    with upload_column:
+        upload_watchlist()
+    with download_column:
+        download_watchlist(index_file)
+
+    tradingview_panel(constituents)
+
 
 if __name__ == "__main__":
     main()

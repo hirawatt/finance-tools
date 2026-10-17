@@ -2,9 +2,10 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.express as px
+from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple
 from plotly.graph_objs._figure import Figure
 
 from utils import snapshot, theme
@@ -37,19 +38,6 @@ from utils.surveillance import check_symbols
 QUANTITY_COLUMNS = ['Quantity Available', 'Quantity Discrepant', 'Quantity Long Term', 
                    'Quantity Pledged (Margin)', 'Quantity Pledged (Loan)']
 REQUIRED_COLUMNS = ['Symbol', 'Average Price', 'Previous Closing Price'] + QUANTITY_COLUMNS
-
-# Analytics sections. They are rendered one at a time rather than as ``st.tabs``,
-# because every tab body executes on every rerun — which would trigger all of the
-# per-symbol network fetches even when the visitor only opens one section.
-ANALYTICS_SECTIONS = (
-    "Correlation",
-    "Beta & Risk",
-    "Valuation",
-    "Risk Flags",
-    "Rebalance",
-    "Outlook",
-    "Tearsheet",
-)
 
 @st.cache_data(ttl=3600)
 def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -130,6 +118,453 @@ def format_summary(summary: pd.Series) -> pd.Series:
             formatted[label] = f"{value:.2f}"
     return pd.Series(formatted, name="Portfolio")
 
+
+# --------------------------------------------------------------------------- #
+# Analytics: one renderer per section, over a shared, frozen context
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class AnalyticsContext:
+    """Everything the analytics sections read, computed once per render.
+
+    Passing one context keeps the sections independent of each other and lets
+    each one be read — and tested — on its own.
+    """
+
+    filtered_df: pd.DataFrame
+    usable: list
+    returns: pd.DataFrame
+    weights: pd.Series
+    portfolio_returns: pd.Series
+    prices: pd.DataFrame
+    benchmark: Optional[pd.Series]
+
+    @property
+    def symbols(self) -> Tuple[str, ...]:
+        """The symbols, sorted — the key the cached loaders are called with."""
+        return tuple(sorted(self.usable))
+
+
+def load_or_empty(loader: Callable[..., pd.DataFrame], *args, what: str) -> pd.DataFrame:
+    """Call a market-data loader, warning and returning an empty frame on failure.
+
+    The analytics are advisory: an upstream outage shows a warning and an empty
+    section rather than breaking the page.
+    """
+    try:
+        frame = loader(*args)
+    except Exception as e:  # network / parsing failures should not break the page
+        st.warning(f"Could not fetch {what}: {e}")
+        return pd.DataFrame()
+    return frame if frame is not None else pd.DataFrame()
+
+
+def fundamentals_for(ctx: AnalyticsContext) -> pd.DataFrame:
+    """Company fundamentals, shared by the valuation and risk-flag sections."""
+    return load_or_empty(load_company_data, ctx.symbols, what="fundamentals")
+
+
+def table(
+    data: pd.DataFrame,
+    formats=None,
+    *,
+    hide_index: bool = False,
+) -> None:
+    """Render a dataframe, applying ``formats`` when given.
+
+    ``formats`` is either one format string for every column or a mapping of
+    column to format string; missing values always show as an en dash.
+    """
+    st.dataframe(
+        data.style.format(formats, na_rep="–") if formats is not None else data,
+        width="stretch",
+        hide_index=hide_index,
+    )
+
+
+def render_correlation(ctx: AnalyticsContext) -> None:
+    """Correlation heatmap of the holdings' daily returns."""
+    corr = correlation_matrix(ctx.returns)
+    fig = px.imshow(
+        corr,
+        text_auto=".2f",
+        zmin=-1,
+        zmax=1,
+        color_continuous_scale="RdBu_r",
+        aspect="auto",
+        template="plotly_white",
+    )
+    fig.update_layout(margin=dict(t=10, b=0, l=0, r=0))
+    st.plotly_chart(fig, width="stretch")
+
+    if len(corr) > 1:
+        upper = np.triu(np.ones(corr.shape), k=1).astype(bool)
+        pairs = corr.where(upper).stack().sort_values(ascending=False)
+        st.caption(
+            "Most correlated pairs: "
+            + ", ".join(f"{a} / {b} ({v:.2f})" for (a, b), v in pairs.head(3).items())
+        )
+
+
+def render_beta(ctx: AnalyticsContext) -> None:
+    """Per-holding beta against the benchmark plus the portfolio risk/return."""
+    if ctx.benchmark is not None and not ctx.benchmark.empty:
+        beta = compute_beta(ctx.returns, ctx.benchmark)
+        if beta.empty:
+            st.info("Not enough overlap with the benchmark to compute beta.")
+        else:
+            table(beta.to_frame(), "{:.2f}")
+            st.caption(
+                f"Beta vs {BENCHMARK_NAME}: above 1 moves more than the index, "
+                "below 1 moves less."
+            )
+    else:
+        st.info(f"{BENCHMARK_NAME} history unavailable; beta cannot be computed.")
+
+    st.markdown("**Value-weighted portfolio risk / return**")
+    table(format_summary(performance_summary(ctx.portfolio_returns)).to_frame())
+
+
+def render_valuation(ctx: AnalyticsContext) -> None:
+    """Valuation multiples and the value-weighted portfolio P/E."""
+    company_data = fundamentals_for(ctx)
+    if company_data.empty:
+        st.info("No valuation data available for the selected symbols.")
+        return
+
+    fundamentals = company_data[list(FUNDAMENTAL_FIELDS.values())]
+    pe = fundamentals.get("P/E (trailing)", pd.Series(dtype=float))
+    valid_pe = pe[pe > 0]
+
+    portfolio_pe = weighted_average_pe(pe, ctx.weights)
+    theme.metric_row(
+        (
+            ("Portfolio P/E (weighted)", f"{portfolio_pe:.1f}" if portfolio_pe else "–"),
+            ("Median holding P/E", f"{valid_pe.median():.1f}" if not valid_pe.empty else "–"),
+            ("Holdings with P/E", f"{len(valid_pe)} / {len(pe)}"),
+        )
+    )
+    st.caption(
+        "Portfolio P/E is the value-weighted harmonic mean (total value ÷ total "
+        "earnings); loss-making holdings with no positive P/E are excluded."
+    )
+
+    detail = fundamentals.copy()
+    if ctx.weights.sum() > 0:
+        detail.insert(0, "Weight %", ctx.weights.reindex(detail.index) / ctx.weights.sum() * 100)
+    table(
+        detail,
+        {
+            "Weight %": "{:.1f}%",
+            "P/E (trailing)": "{:.1f}",
+            "P/E (forward)": "{:.1f}",
+            "P/B": "{:.2f}",
+            "EPS (trailing)": "₹{:,.2f}",
+            "Dividend yield (%)": "{:.2f}",
+            "Market cap": "₹{:,.0f}",
+        },
+    )
+
+    chart_df = fundamentals.reset_index()
+    chart_df = chart_df[chart_df["P/E (trailing)"].notna()]
+    if not chart_df.empty:
+        fig = px.bar(
+            chart_df,
+            x="Symbol",
+            y="P/E (trailing)",
+            template="plotly_white",
+            title="Trailing P/E by holding",
+        )
+        fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
+        st.plotly_chart(fig, width="stretch")
+
+
+def _render_fundamental_flags(company_data: pd.DataFrame) -> None:
+    """The red-flag screen over reported fundamentals."""
+    st.subheader("Fundamental flags")
+    if company_data.empty:
+        st.info("No fundamentals available to screen for red flags.")
+        return
+
+    flags = detect_red_flags(company_data)
+    if flags.empty:
+        st.success("No fundamental red flags detected in the selected holdings.")
+        return
+
+    theme.metric_row(
+        (
+            ("Holdings flagged", f"{flags['Symbol'].nunique()} / {len(company_data)}"),
+            ("High severity", flags.loc[flags["Severity"] == "high", "Symbol"].nunique()),
+            ("Total flags", len(flags)),
+        )
+    )
+    st.caption(
+        "Rule-based screen over reported fundamentals (leverage, earnings, cash "
+        "flow, margins, valuation) — prompts to investigate, not verdicts."
+    )
+    table(flag_summary(flags))
+    table(flags, hide_index=True)
+
+
+def _render_default_risk(default_risk: pd.DataFrame, holdings: int) -> None:
+    """Altman Z-score zones for the holdings that could be scored."""
+    st.subheader("Default risk (Altman Z-score)")
+    scored = (
+        default_risk.dropna(subset=["Z-score"]) if not default_risk.empty else pd.DataFrame()
+    )
+    if scored.empty:
+        st.info("Not enough statement data to score the holdings.")
+        return
+
+    theme.metric_row(
+        (
+            ("Scored", f"{len(scored)} / {holdings}"),
+            ("Distress zone", int((scored["Zone"] == "Distress").sum())),
+            ("Grey zone", int((scored["Zone"] == "Grey").sum())),
+        )
+    )
+    st.caption(
+        "Altman Z-score — ≥ 2.99 safe, 1.81–2.99 grey, < 1.81 distress. Calibrated "
+        "for non-financial corporates, so read lenders and holding companies with "
+        "care. A screen, not a probability model."
+    )
+    table(
+        scored,
+        {
+            "Z-score": "{:.2f}",
+            "Total assets": "₹{:,.0f}",
+            "Total liabilities": "₹{:,.0f}",
+            "EBIT": "₹{:,.0f}",
+        },
+    )
+
+
+def _render_surveillance(ctx: AnalyticsContext) -> None:
+    """NSE ASM/GSM membership for the holdings."""
+    st.subheader("Exchange surveillance (ASM/GSM)")
+    surveillance = load_or_empty(load_surveillance, what="NSE surveillance lists")
+    if surveillance.empty:
+        st.info("Surveillance data is unavailable right now.")
+        return
+
+    updated = surveillance["Updated"].dropna()
+    if not updated.empty:
+        st.caption(f"Lists as of {updated.iloc[0]}.")
+
+    matched = check_symbols(ctx.usable, surveillance)
+    if matched.empty:
+        st.success("None of your holdings are on NSE's ASM/GSM lists.")
+        return
+
+    asm = matched[matched["List"].str.startswith("ASM")]
+    gsm = matched[matched["List"] == "GSM"]
+    theme.metric_row(
+        (
+            ("On ASM", asm["Symbol"].nunique()),
+            ("On GSM", gsm["Symbol"].nunique()),
+            ("Holdings on lists", matched["Symbol"].nunique()),
+        )
+    )
+    table(matched, hide_index=True)
+
+
+def render_risk_flags(ctx: AnalyticsContext) -> None:
+    """Fundamental flags, default risk and exchange surveillance."""
+    company_data = fundamentals_for(ctx)
+
+    market_caps = {}
+    if not company_data.empty and "Market cap" in company_data:
+        market_caps = company_data["Market cap"].dropna().to_dict()
+    default_risk = load_or_empty(
+        load_default_risk, ctx.symbols, market_caps, what="default risk"
+    )
+
+    _render_fundamental_flags(company_data)
+    st.markdown("---")
+    _render_default_risk(default_risk, len(ctx.usable))
+    st.markdown("---")
+    _render_surveillance(ctx)
+
+
+def render_rebalance(ctx: AnalyticsContext) -> None:
+    """Target allocations and the trade list that reaches them."""
+    st.caption(
+        "Target allocations are built from daily returns; trades are sized against "
+        "current market value at the latest close."
+    )
+    c1, c2 = st.columns(2)
+    strategy = c1.selectbox("Target allocation", STRATEGIES, key="rebalance_strategy")
+    max_weight_pct = c2.slider(
+        "Max weight per holding (%)", 5, 100, 25, 5, key="rebalance_cap"
+    )
+
+    latest_prices = ctx.prices.sort_index().ffill().iloc[-1]
+    current_values = ctx.filtered_df.groupby("Symbol")["Current Value"].sum().reindex(ctx.usable)
+    current_quantities = ctx.filtered_df.groupby("Symbol")["Total Quantity"].sum().reindex(ctx.usable)
+
+    try:
+        weights_target = target_weights(ctx.returns, strategy, max_weight_pct / 100)
+    except Exception as e:
+        st.warning(f"Could not compute a target allocation: {e}")
+        weights_target = pd.Series(dtype=float)
+
+    if weights_target.empty:
+        st.info("Not enough data to suggest a rebalance.")
+        return
+
+    plan = rebalancing_plan(
+        current_values, current_quantities, latest_prices, weights_target
+    )
+    buys = plan[plan["Action"] == "Buy"]
+    sells = plan[plan["Action"] == "Sell"]
+
+    theme.metric_row(
+        (
+            ("Buy value", f"₹{buys['Δ Value'].sum():,.0f}"),
+            ("Sell value", f"₹{-sells['Δ Value'].sum():,.0f}"),
+            ("Turnover (one-way)", f"{turnover(plan):.1%}"),
+        )
+    )
+
+    comparison = plan[["Current %", "Target %"]].reset_index()
+    fig = px.bar(
+        comparison,
+        x="Symbol",
+        y=["Current %", "Target %"],
+        barmode="group",
+        template="plotly_white",
+        title="Current vs target allocation",
+    )
+    fig.update_layout(margin=dict(t=40, b=0, l=0, r=0), xaxis_title="", yaxis_title="%")
+    st.plotly_chart(fig, width="stretch")
+
+    table(
+        plan,
+        {
+            "Price": "₹{:,.2f}",
+            "Current Qty": "{:,.0f}",
+            "Target Qty": "{:,.0f}",
+            "Δ Qty": "{:+,.0f}",
+            "Current Value": "₹{:,.0f}",
+            "Target Value": "₹{:,.0f}",
+            "Δ Value": "₹{:+,.0f}",
+            "Current %": "{:.1f}%",
+            "Target %": "{:.1f}%",
+        },
+    )
+    st.caption("Δ Qty is rounded to whole shares; a negative figure is a sell.")
+
+
+def _render_upcoming_earnings(ctx: AnalyticsContext) -> None:
+    """Earnings dates inside the selected horizon."""
+    st.subheader("Upcoming earnings")
+    earnings = load_or_empty(load_earnings, ctx.symbols, what="the earnings calendar")
+    if earnings.empty:
+        st.info("No upcoming earnings dates available for the selected holdings.")
+        return
+
+    horizon_label = st.selectbox(
+        "Show earnings within", ["30 days", "90 days", "6 months"], index=1,
+        key="earnings_horizon",
+    )
+    horizon_days = {"30 days": 30, "90 days": 90, "6 months": 182}[horizon_label]
+    soon = upcoming(earnings, horizon_days)
+    if soon.empty:
+        st.info(f"No earnings expected in the next {horizon_label}.")
+        return
+
+    table(
+        soon,
+        {"EPS estimate": "{:,.2f}", "Revenue estimate": "₹{:,.0f}"},
+        hide_index=True,
+    )
+
+
+def _render_price_forecast(ctx: AnalyticsContext) -> None:
+    """Monte Carlo projection of the value-weighted portfolio."""
+    st.subheader("Price forecast")
+    st.caption(
+        "Monte Carlo projection of the value-weighted portfolio from its recent daily "
+        "returns — a scenario range, not a prediction."
+    )
+    c1, c2 = st.columns(2)
+    horizon_label = c1.selectbox(
+        "Forecast horizon", ["1 month", "3 months", "6 months"], index=1, key="forecast_horizon"
+    )
+    simulations = c2.slider("Simulations", 200, 5000, 1000, step=200, key="forecast_sims")
+    steps = {"1 month": 21, "3 months": 63, "6 months": 126}[horizon_label]
+
+    start_value = float(ctx.filtered_df["Current Value"].sum())
+    projection = forecast_paths(
+        ctx.portfolio_returns, start_value, horizon=steps, simulations=simulations
+    )
+    if projection.empty or start_value <= 0:
+        st.info("Not enough return history to build a forecast.")
+        return
+
+    last_date = ctx.prices.sort_index().index[-1]
+    chart = projection.set_axis(
+        [last_date + timedelta(days=round(step * 7 / 5)) for step in projection.index]
+    )
+    fig = px.line(chart, template="plotly_white")
+    for trace in fig.data:
+        if trace.name == "P50":
+            trace.update(line=dict(width=3, color=theme.ACCENT))
+        else:
+            trace.update(line=dict(width=1, dash="dot"))
+    fig.update_layout(
+        margin=dict(t=20, b=0, l=0, r=0),
+        xaxis_title="Projected date",
+        yaxis_title="Portfolio value (₹)",
+        legend_title="Percentile",
+    )
+    st.plotly_chart(fig, width="stretch")
+
+    final = projection.iloc[-1]
+    theme.metric_row(
+        (
+            ("Median", f"₹{final['P50']:,.0f}", f"{(final['P50'] / start_value - 1):+.1%}"),
+            ("Pessimistic (P5)", f"₹{final['P5']:,.0f}"),
+            ("Optimistic (P95)", f"₹{final['P95']:,.0f}"),
+        )
+    )
+
+
+def render_outlook(ctx: AnalyticsContext) -> None:
+    """The earnings calendar and the price forecast."""
+    _render_upcoming_earnings(ctx)
+    st.markdown("---")
+    _render_price_forecast(ctx)
+
+
+def render_tearsheet(ctx: AnalyticsContext) -> None:
+    """The full quantstats metrics table."""
+    report = full_metrics_report(ctx.portfolio_returns)
+    if report.empty:
+        st.info("Not enough data to build a tearsheet.")
+        return
+
+    # quantstats mixes strings and numbers in one column; stringify so Arrow can
+    # serialise it for st.dataframe.
+    table(report.astype(str))
+
+
+#: The analytics sections, keyed by the label the segmented control shows and
+#: rendered one at a time rather than as ``st.tabs`` — every tab body executes on
+#: every rerun, which would force all of the per-symbol network fetches
+#: (fundamentals, Z-score statements, earnings) even when the visitor only wants
+#: a single view.
+SECTIONS: Dict[str, Callable[[AnalyticsContext], None]] = {
+    "Correlation": render_correlation,
+    "Beta & Risk": render_beta,
+    "Valuation": render_valuation,
+    "Risk Flags": render_risk_flags,
+    "Rebalance": render_rebalance,
+    "Outlook": render_outlook,
+    "Tearsheet": render_tearsheet,
+}
+ANALYTICS_SECTIONS: Tuple[str, ...] = tuple(SECTIONS)
+
+
 def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
     """Render correlation, beta and quantstats-based portfolio analytics."""
     st.markdown("---")
@@ -174,12 +609,16 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
 
     returns = returns[usable]
     weights = filtered_df.groupby("Symbol")["Invested Value"].sum()
-    portfolio_returns = weighted_portfolio_returns(returns, weights)
+    ctx = AnalyticsContext(
+        filtered_df=filtered_df,
+        usable=usable,
+        returns=returns,
+        weights=weights,
+        portfolio_returns=weighted_portfolio_returns(returns, weights),
+        prices=prices,
+        benchmark=benchmark,
+    )
 
-    # Render one section at a time. ``st.tabs`` executes every body on every
-    # rerun, which would force all of the per-symbol network fetches
-    # (fundamentals, Z-score statements, earnings) even when the visitor only
-    # wants a single view.
     section = st.segmented_control(
         "Analytics section",
         ANALYTICS_SECTIONS,
@@ -187,346 +626,9 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
         key="analytics_section",
         label_visibility="collapsed",
     )
-    if section is None:  # the control can be cleared back to no selection
-        section = ANALYTICS_SECTIONS[0]
+    # The control can be cleared back to no selection.
+    SECTIONS[section or ANALYTICS_SECTIONS[0]](ctx)
 
-    if section == "Correlation":
-        corr = correlation_matrix(returns)
-        fig = px.imshow(
-            corr,
-            text_auto=".2f",
-            zmin=-1,
-            zmax=1,
-            color_continuous_scale="RdBu_r",
-            aspect="auto",
-            template="plotly_white",
-        )
-        fig.update_layout(margin=dict(t=10, b=0, l=0, r=0))
-        st.plotly_chart(fig, width="stretch")
-
-        if len(corr) > 1:
-            upper = np.triu(np.ones(corr.shape), k=1).astype(bool)
-            pairs = corr.where(upper).stack().sort_values(ascending=False)
-            st.caption(
-                "Most correlated pairs: "
-                + ", ".join(f"{a} / {b} ({v:.2f})" for (a, b), v in pairs.head(3).items())
-            )
-
-    if section == "Beta & Risk":
-        if benchmark is not None and not benchmark.empty:
-            beta = compute_beta(returns, benchmark)
-            if beta.empty:
-                st.info("Not enough overlap with the benchmark to compute beta.")
-            else:
-                st.dataframe(beta.to_frame().style.format("{:.2f}"), width="stretch")
-                st.caption(
-                    f"Beta vs {BENCHMARK_NAME}: above 1 moves more than the index, "
-                    "below 1 moves less."
-                )
-        else:
-            st.info(f"{BENCHMARK_NAME} history unavailable; beta cannot be computed.")
-
-        st.markdown("**Value-weighted portfolio risk / return**")
-        st.dataframe(
-            format_summary(performance_summary(portfolio_returns)).to_frame(),
-            width="stretch",
-        )
-
-    if section == "Valuation":
-        try:
-            company_data = load_company_data(tuple(sorted(usable)))
-        except Exception as e:  # network / parsing failures should not break the page
-            st.warning(f"Could not fetch fundamentals: {e}")
-            company_data = pd.DataFrame()
-
-        if company_data is None or company_data.empty:
-            st.info("No valuation data available for the selected symbols.")
-        else:
-            fundamentals = company_data[list(FUNDAMENTAL_FIELDS.values())]
-            pe = fundamentals.get("P/E (trailing)", pd.Series(dtype=float))
-            valid_pe = pe[pe > 0]
-
-            c1, c2, c3 = st.columns(3)
-            portfolio_pe = weighted_average_pe(pe, weights)
-            c1.metric("Portfolio P/E (weighted)", f"{portfolio_pe:.1f}" if portfolio_pe else "–")
-            c2.metric("Median holding P/E", f"{valid_pe.median():.1f}" if not valid_pe.empty else "–")
-            c3.metric("Holdings with P/E", f"{len(valid_pe)} / {len(pe)}")
-            st.caption(
-                "Portfolio P/E is the value-weighted harmonic mean (total value ÷ total "
-                "earnings); loss-making holdings with no positive P/E are excluded."
-            )
-
-            table = fundamentals.copy()
-            if weights.sum() > 0:
-                table.insert(0, "Weight %", weights.reindex(table.index) / weights.sum() * 100)
-            st.dataframe(
-                table.style.format(
-                    {
-                        "Weight %": "{:.1f}%",
-                        "P/E (trailing)": "{:.1f}",
-                        "P/E (forward)": "{:.1f}",
-                        "P/B": "{:.2f}",
-                        "EPS (trailing)": "₹{:,.2f}",
-                        "Dividend yield (%)": "{:.2f}",
-                        "Market cap": "₹{:,.0f}",
-                    },
-                    na_rep="–",
-                ),
-                width="stretch",
-            )
-
-            chart_df = fundamentals.reset_index()
-            chart_df = chart_df[chart_df["P/E (trailing)"].notna()]
-            if not chart_df.empty:
-                fig = px.bar(
-                    chart_df,
-                    x="Symbol",
-                    y="P/E (trailing)",
-                    template="plotly_white",
-                    title="Trailing P/E by holding",
-                )
-                fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
-                st.plotly_chart(fig, width="stretch")
-
-    if section == "Risk Flags":
-        try:
-            company_data = load_company_data(tuple(sorted(usable)))
-        except Exception as e:  # network / parsing failures should not break the page
-            st.warning(f"Could not fetch fundamentals: {e}")
-            company_data = pd.DataFrame()
-
-        market_caps = {}
-        if company_data is not None and not company_data.empty and "Market cap" in company_data:
-            market_caps = company_data["Market cap"].dropna().to_dict()
-
-        try:
-            default_risk = load_default_risk(tuple(sorted(usable)), market_caps)
-        except Exception as e:
-            st.warning(f"Could not assess default risk: {e}")
-            default_risk = pd.DataFrame()
-
-        st.subheader("Fundamental flags")
-        if company_data is None or company_data.empty:
-            st.info("No fundamentals available to screen for red flags.")
-        else:
-            flags = detect_red_flags(company_data)
-            if flags.empty:
-                st.success("No fundamental red flags detected in the selected holdings.")
-            else:
-                flagged = flags["Symbol"].nunique()
-                high = flags.loc[flags["Severity"] == "high", "Symbol"].nunique()
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Holdings flagged", f"{flagged} / {len(company_data)}")
-                c2.metric("High severity", high)
-                c3.metric("Total flags", len(flags))
-                st.caption(
-                    "Rule-based screen over reported fundamentals (leverage, earnings, cash "
-                    "flow, margins, valuation) — prompts to investigate, not verdicts."
-                )
-                st.dataframe(flag_summary(flags), width="stretch")
-                st.dataframe(flags, width="stretch", hide_index=True)
-
-        st.markdown("---")
-        st.subheader("Default risk (Altman Z-score)")
-        scored = pd.DataFrame()
-        if default_risk is not None and not default_risk.empty:
-            scored = default_risk.dropna(subset=["Z-score"])
-        if scored.empty:
-            st.info("Not enough statement data to score the holdings.")
-        else:
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Scored", f"{len(scored)} / {len(usable)}")
-            c2.metric("Distress zone", int((scored["Zone"] == "Distress").sum()))
-            c3.metric("Grey zone", int((scored["Zone"] == "Grey").sum()))
-            st.caption(
-                "Altman Z-score — ≥ 2.99 safe, 1.81–2.99 grey, < 1.81 distress. Calibrated "
-                "for non-financial corporates, so read lenders and holding companies with "
-                "care. A screen, not a probability model."
-            )
-            st.dataframe(
-                scored.style.format(
-                    {
-                        "Z-score": "{:.2f}",
-                        "Total assets": "₹{:,.0f}",
-                        "Total liabilities": "₹{:,.0f}",
-                        "EBIT": "₹{:,.0f}",
-                    },
-                    na_rep="–",
-                ),
-                width="stretch",
-            )
-
-        st.markdown("---")
-        st.subheader("Exchange surveillance (ASM/GSM)")
-        try:
-            surveillance = load_surveillance()
-        except Exception as e:
-            st.warning(f"Could not fetch NSE surveillance lists: {e}")
-            surveillance = pd.DataFrame()
-
-        if surveillance is None or surveillance.empty:
-            st.info("Surveillance data is unavailable right now.")
-        else:
-            updated = surveillance["Updated"].dropna()
-            if not updated.empty:
-                st.caption(f"Lists as of {updated.iloc[0]}.")
-
-            matched = check_symbols(usable, surveillance)
-            if matched.empty:
-                st.success("None of your holdings are on NSE's ASM/GSM lists.")
-            else:
-                asm = matched[matched["List"].str.startswith("ASM")]
-                gsm = matched[matched["List"] == "GSM"]
-                c1, c2, c3 = st.columns(3)
-                c1.metric("On ASM", asm["Symbol"].nunique())
-                c2.metric("On GSM", gsm["Symbol"].nunique())
-                c3.metric("Holdings on lists", matched["Symbol"].nunique())
-                st.dataframe(matched, width="stretch", hide_index=True)
-
-    if section == "Rebalance":
-        st.caption(
-            "Target allocations are built from daily returns; trades are sized against "
-            "current market value at the latest close."
-        )
-        c1, c2 = st.columns(2)
-        strategy = c1.selectbox("Target allocation", STRATEGIES, key="rebalance_strategy")
-        max_weight_pct = c2.slider(
-            "Max weight per holding (%)", 5, 100, 25, 5, key="rebalance_cap"
-        )
-
-        latest_prices = prices.sort_index().ffill().iloc[-1]
-        current_values = filtered_df.groupby("Symbol")["Current Value"].sum().reindex(usable)
-        current_quantities = filtered_df.groupby("Symbol")["Total Quantity"].sum().reindex(usable)
-
-        try:
-            weights_target = target_weights(returns, strategy, max_weight_pct / 100)
-        except Exception as e:
-            st.warning(f"Could not compute a target allocation: {e}")
-            weights_target = pd.Series(dtype=float)
-
-        if weights_target.empty:
-            st.info("Not enough data to suggest a rebalance.")
-        else:
-            plan = rebalancing_plan(
-                current_values, current_quantities, latest_prices, weights_target
-            )
-            buys = plan[plan["Action"] == "Buy"]
-            sells = plan[plan["Action"] == "Sell"]
-
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Buy value", f"₹{buys['Δ Value'].sum():,.0f}")
-            m2.metric("Sell value", f"₹{-sells['Δ Value'].sum():,.0f}")
-            m3.metric("Turnover (one-way)", f"{turnover(plan):.1%}")
-
-            comparison = plan[["Current %", "Target %"]].reset_index()
-            fig = px.bar(
-                comparison,
-                x="Symbol",
-                y=["Current %", "Target %"],
-                barmode="group",
-                template="plotly_white",
-                title="Current vs target allocation",
-            )
-            fig.update_layout(margin=dict(t=40, b=0, l=0, r=0), xaxis_title="", yaxis_title="%")
-            st.plotly_chart(fig, width="stretch")
-
-            st.dataframe(
-                plan.style.format(
-                    {
-                        "Price": "₹{:,.2f}",
-                        "Current Qty": "{:,.0f}",
-                        "Target Qty": "{:,.0f}",
-                        "Δ Qty": "{:+,.0f}",
-                        "Current Value": "₹{:,.0f}",
-                        "Target Value": "₹{:,.0f}",
-                        "Δ Value": "₹{:+,.0f}",
-                        "Current %": "{:.1f}%",
-                        "Target %": "{:.1f}%",
-                    },
-                    na_rep="–",
-                ),
-                width="stretch",
-            )
-            st.caption("Δ Qty is rounded to whole shares; a negative figure is a sell.")
-
-    if section == "Outlook":
-        try:
-            earnings = load_earnings(tuple(sorted(usable)))
-        except Exception as e:
-            st.warning(f"Could not fetch the earnings calendar: {e}")
-            earnings = pd.DataFrame()
-
-        st.subheader("Upcoming earnings")
-        if earnings is None or earnings.empty:
-            st.info("No upcoming earnings dates available for the selected holdings.")
-        else:
-            horizon_label = st.selectbox(
-                "Show earnings within", ["30 days", "90 days", "6 months"], index=1,
-                key="earnings_horizon",
-            )
-            horizon_days = {"30 days": 30, "90 days": 90, "6 months": 182}[horizon_label]
-            soon = upcoming(earnings, horizon_days)
-            if soon.empty:
-                st.info(f"No earnings expected in the next {horizon_label}.")
-            else:
-                st.dataframe(
-                    soon.style.format(
-                        {"EPS estimate": "{:,.2f}", "Revenue estimate": "₹{:,.0f}"}, na_rep="–"
-                    ),
-                    width="stretch",
-                    hide_index=True,
-                )
-
-        st.markdown("---")
-        st.subheader("Price forecast")
-        st.caption(
-            "Monte Carlo projection of the value-weighted portfolio from its recent daily "
-            "returns — a scenario range, not a prediction."
-        )
-        c1, c2 = st.columns(2)
-        horizon_label = c1.selectbox(
-            "Forecast horizon", ["1 month", "3 months", "6 months"], index=1, key="forecast_horizon"
-        )
-        simulations = c2.slider("Simulations", 200, 5000, 1000, step=200, key="forecast_sims")
-        steps = {"1 month": 21, "3 months": 63, "6 months": 126}[horizon_label]
-
-        start_value = float(filtered_df["Current Value"].sum())
-        projection = forecast_paths(portfolio_returns, start_value, horizon=steps, simulations=simulations)
-        if projection.empty or start_value <= 0:
-            st.info("Not enough return history to build a forecast.")
-        else:
-            last_date = prices.sort_index().index[-1]
-            chart = projection.set_axis(
-                [last_date + timedelta(days=round(step * 7 / 5)) for step in projection.index]
-            )
-            fig = px.line(chart, template="plotly_white")
-            for trace in fig.data:
-                if trace.name == "P50":
-                    trace.update(line=dict(width=3, color=theme.ACCENT))
-                else:
-                    trace.update(line=dict(width=1, dash="dot"))
-            fig.update_layout(
-                margin=dict(t=20, b=0, l=0, r=0),
-                xaxis_title="Projected date",
-                yaxis_title="Portfolio value (₹)",
-                legend_title="Percentile",
-            )
-            st.plotly_chart(fig, width="stretch")
-
-            final = projection.iloc[-1]
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Median", f"₹{final['P50']:,.0f}", f"{(final['P50'] / start_value - 1):+.1%}")
-            c2.metric("Pessimistic (P5)", f"₹{final['P5']:,.0f}")
-            c3.metric("Optimistic (P95)", f"₹{final['P95']:,.0f}")
-
-    if section == "Tearsheet":
-        report = full_metrics_report(portfolio_returns)
-        if report.empty:
-            st.info("Not enough data to build a tearsheet.")
-        else:
-            # quantstats mixes strings and numbers in one column; stringify so
-            # Arrow can serialise it for st.dataframe.
-            st.dataframe(report.astype(str), width="stretch")
 
 def main():
     theme.page_header(
@@ -594,11 +696,14 @@ def main():
     current_value = filtered_df['Current Value'].sum()
     pnl = current_value - total_investment
     pct_change = (pnl / total_investment) * 100 if total_investment else 0
-    
-    c1, c2, c3 = st.columns(3)
-    c1.metric('Total Investment', f"₹{total_investment:,.0f}")
-    c2.metric('Current Value', f"₹{current_value:,.0f}")
-    c3.metric('Total P&L', f"₹{pnl:,.0f}", f"{pct_change:+.1f}%")
+
+    theme.metric_row(
+        (
+            ('Total Investment', f"₹{total_investment:,.0f}"),
+            ('Current Value', f"₹{current_value:,.0f}"),
+            ('Total P&L', f"₹{pnl:,.0f}", f"{pct_change:+.1f}%"),
+        )
+    )
     
     # Display Holdings
     with st.expander("Holdings Details"):

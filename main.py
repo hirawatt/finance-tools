@@ -36,7 +36,7 @@ theme.apply_theme()
 
 # Brand lockup in the sidebar header, with the compact mark for the collapsed
 # sidebar. Both are committed SVGs, so the container image needs no extra files.
-st.logo("assets/logo.svg", size="large", icon_image="assets/logo-mark.svg")
+st.logo("assets/logo.svg", size="large", icon_image="assets/favicon.svg")
 
 
 @st.cache_data
@@ -75,11 +75,14 @@ def home() -> None:
     )
 
     stats = dashboard_stats()
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Watchlists & portfolios", stats["watchlists"])
-    c2.metric("Companies tracked", f"{stats['companies']:,}")
-    c3.metric("Sectors covered", stats["sectors"])
-    c4.metric("Tools & views", len(PAGES) - 2)  # every page but Home and About
+    theme.metric_row(
+        (
+            ("Watchlists & portfolios", stats["watchlists"]),
+            ("Companies tracked", f"{stats['companies']:,}"),
+            ("Sectors covered", stats["sectors"]),
+            ("Tools & views", len(PAGES) - 2),  # every page but Home and About
+        )
+    )
 
     theme.section_header(
         "Featured tools",

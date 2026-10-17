@@ -38,7 +38,12 @@ name = _credits["name"]
 buymeacoffee = _credits["buymeacoffee"]
 
 
-def footer():
+def credits_panel():
+    """The credits expander: who built this, and how to support it.
+
+    Named for what it shows rather than "footer", which is the app-wide
+    ``theme.footer()`` strip.
+    """
     with st.expander("Credits", expanded=True):
         st.markdown(
             '<div style="text-align: center">Made with care by '
@@ -53,7 +58,7 @@ def main():
         "About",
         "Credits, links and the people behind The Trading Dashboard.",
     )
-    footer()
+    credits_panel()
 
 if __name__ == "__main__":
     main()

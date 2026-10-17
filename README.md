@@ -81,17 +81,18 @@ at a glance.
   legible. Restart the app after editing it.
 - **Gaps Streamlit cannot theme** (the home hero, carded metrics/tables/charts,
   the sidebar rail, the footer) live in [`utils/theme.py`](utils/theme.py) as one
-  stylesheet plus a few helpers (`apply_theme`, `hero`, `page_header`,
-  `section_header`, `feature_card`, `footer`). It is injected with `st.html`, so
-  a page's markdown elements stay exactly as the page wrote them.
+  stylesheet plus small helpers — `apply_theme`, `hero`, `page_header`,
+  `section_header`, `metric_row`, `card`, `feature_card`, `glyph`, `footer`.
+  It is injected with `st.html`, so a page's markdown elements stay exactly as
+  the page wrote them.
 - **No emoji, anywhere.** Iconography is [Material Symbols](https://fonts.google.com/icons),
   the font Streamlit already bundles: `:material/<name>:` where a page is
   registered in `main.py` (and for widget `icon=` arguments), and
   `theme.glyph("<name>")` inside custom HTML. [`tests/test_style.py`](tests/test_style.py)
   fails the build if an emoji creeps back in.
 - **Brand marks are committed SVGs** in `assets/` — `favicon.svg` (the browser
-  tab icon, set as `page_icon`) plus `logo.svg`/`logo-mark.svg` for the sidebar
-  lockup — so the container image carries no extra binary assets.
+  tab icon, set as `page_icon`, and the collapsed sidebar mark) and `logo.svg`
+  (the sidebar lockup) — so the container image carries no extra binary assets.
 
 When adding a page, register it in `main.py` with a title and a
 `:material/icon_name:` icon, and open the content with `theme.page_header(...)`

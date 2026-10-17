@@ -3,6 +3,8 @@ import unittest
 from importlib.util import module_from_spec, spec_from_file_location
 from unittest.mock import MagicMock
 
+from _stubs import stubbed
+
 
 class MockPackage(MagicMock):
     """A MagicMock that also behaves like a package (has ``__path__``)."""
@@ -12,26 +14,9 @@ class MockPackage(MagicMock):
         self.__path__ = []
 
 
-_MISSING = object()
-_pre_existing_modules = set(sys.modules)
-
-
-def _forget_parent_attribute(name: str, module) -> None:
-    """Drop a submodule's attribute from its parent package.
-
-    Removing an entry from ``sys.modules`` is not enough: importing a submodule
-    also binds it as an attribute of its parent, and ``from utils import x``
-    resolves that attribute before it consults ``sys.modules``. Without this the
-    next test module would receive the stale, mock-backed module.
-    """
-    parent_name, _, child = name.rpartition(".")
-    parent = sys.modules.get(parent_name)
-    if parent is not None and getattr(parent, child, None) is module:
-        delattr(parent, child)
-
 # The page imports pandas/streamlit/plotly at import time. Stub them only while
-# the module is being loaded, then restore whatever was there before so the real
-# packages stay untouched for other tests in the same process.
+# the module is being loaded, so the real packages stay untouched for other
+# tests in the same process.
 _OVERRIDES = {
     "streamlit": MagicMock(),
     "pandas": MagicMock(),
@@ -40,25 +25,12 @@ _OVERRIDES = {
     "plotly.graph_objs": MockPackage(),
     "plotly.graph_objs._figure": MagicMock(),
 }
-_saved_modules = {name: sys.modules.get(name, _MISSING) for name in _OVERRIDES}
 
-sys.modules.update(_OVERRIDES)
-try:
+with stubbed("portfolio_analysis", **_OVERRIDES):
     spec = spec_from_file_location("portfolio_analysis", "pages/portfolio_analysis.py")
     portfolio_analysis = module_from_spec(spec)
     sys.modules["portfolio_analysis"] = portfolio_analysis
     spec.loader.exec_module(portfolio_analysis)
-finally:
-    # Drop any module imported while pandas was stubbed (e.g. utils.snapshot),
-    # so nothing caches a mock reference for later test modules. Both the
-    # sys.modules entry and the parent-package attribute have to go.
-    for name in set(sys.modules) - _pre_existing_modules:
-        _forget_parent_attribute(name, sys.modules.pop(name, None))
-    for name, original in _saved_modules.items():
-        if original is _MISSING:
-            sys.modules.pop(name, None)
-        else:
-            sys.modules[name] = original
 
 
 class TestPortfolioAnalysis(unittest.TestCase):

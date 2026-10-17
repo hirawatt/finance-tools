@@ -22,15 +22,8 @@ def main():
     )
 
     for index, (column, (icon, title, body)) in enumerate(zip(st.columns(4), SCREENS)):
-        with column, st.container(border=True, key=f"td-card-screen-{index}"):
-            st.markdown(
-                '<div class="td-card">'
-                f'<div class="td-card__icon">{theme.glyph(icon)}</div>'
-                f'<div class="td-card__title">{title}</div>'
-                f'<p class="td-card__body">{body}</p>'
-                "</div>",
-                unsafe_allow_html=True,
-            )
+        with column:
+            theme.card(icon, title, body, key=f"td-card-screen-{index}")
 
 
 if __name__ == "__main__":

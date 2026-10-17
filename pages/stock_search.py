@@ -43,9 +43,12 @@ def main() -> None:
 
     avg_investment_value = round(min_investment / no_of_stocks, 2)
     max_stock_price = round(max_portfolio_allocation * min_investment / 100, 2)
-    c1, c2 = st.columns(2)
-    c1.metric("Average investment value (₹)", f"{avg_investment_value:,.2f}")
-    c2.metric("Max. stock price (₹)", f"{max_stock_price:,.2f}")
+    theme.metric_row(
+        (
+            ("Average investment value (₹)", f"{avg_investment_value:,.2f}"),
+            ("Max. stock price (₹)", f"{max_stock_price:,.2f}"),
+        )
+    )
 
     companies = load_companies().iloc[:, [0, 1, 2, 3, 4]]
 
@@ -56,11 +59,14 @@ def main() -> None:
     nse_only = small_cap[small_cap["BSE Code"].isna()]
     dual_listed = small_cap[small_cap["NSE Code"].notna() & small_cap["BSE Code"].notna()]
 
-    a1, a2, a3, a4 = st.columns(4)
-    a1.metric("Small-cap companies", f"{len(small_cap):,}")
-    a2.metric("BSE only", f"{len(bse_only):,}")
-    a3.metric("NSE only", f"{len(nse_only):,}")
-    a4.metric("BSE and NSE", f"{len(dual_listed):,}")
+    theme.metric_row(
+        (
+            ("Small-cap companies", f"{len(small_cap):,}"),
+            ("BSE only", f"{len(bse_only):,}"),
+            ("NSE only", f"{len(nse_only):,}"),
+            ("BSE and NSE", f"{len(dual_listed):,}"),
+        )
+    )
 
     min_stock_price = st.number_input(
         "Min. stock price (₹)", value=25, min_value=0, max_value=100

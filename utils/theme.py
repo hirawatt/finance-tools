@@ -19,27 +19,32 @@ tests will import.)
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
+from typing import Callable, Optional
+
 import streamlit as st
-from streamlit.string_util import is_material_icon
 
-#: The brand accent. Kept in sync with ``primaryColor`` in
-#: ``.streamlit/config.toml``; pages use it for hand-coloured plotly traces that
-#: Streamlit's chart theme does not reach.
-ACCENT = "#1F6FEB"
-
-_CSS = """
-:root {
-  --td-accent: #1F6FEB;
-  --td-accent-soft: rgba(31, 111, 235, 0.10);
-  --td-ink: #0B1220;
-  --td-muted: #64748B;
-  --td-line: #E2E8F0;
-  --td-surface: #FFFFFF;
-  --td-radius: 0.75rem;
-  --td-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --td-shadow-md: 0 10px 30px rgba(15, 23, 42, 0.09);
+#: The brand palette, and the single source of truth for every colour this
+#: module styles. ``.streamlit/config.toml`` mirrors these values because it owns
+#: the native theme; keeping the list here means the stylesheet and the handful
+#: of colours pages reuse can never drift apart.
+PALETTE = {
+    "accent": "#1F6FEB",
+    "accent_soft": "rgba(31, 111, 235, 0.10)",
+    "ink": "#0B1220",
+    "muted": "#64748B",
+    "line": "#E2E8F0",
+    "surface": "#FFFFFF",
+    "radius": "0.75rem",
+    "shadow-sm": "0 1px 2px rgba(15, 23, 42, 0.05)",
+    "shadow-md": "0 10px 30px rgba(15, 23, 42, 0.09)",
 }
 
+#: The accent, for pages that hand-colour plotly traces Streamlit's chart theme
+#: does not reach.
+ACCENT = PALETTE["accent"]
+
+_CSS = """
 /* ---- Frame -------------------------------------------------------- */
 /* Drop Streamlit's rainbow top rule and let the page breathe. */
 [data-testid="stDecoration"] { display: none; }
@@ -311,13 +316,25 @@ hr { border-color: var(--td-line); margin: 1.15rem 0; }
 """
 
 
+def _stylesheet() -> str:
+    """The generated theme variables, followed by the static rules.
+
+    Rendering ``:root`` from :data:`PALETTE` keeps the colour list to one place;
+    :data:`_CSS` holds only the rules that reference those variables.
+    """
+    variables = "\n".join(
+        f"  --td-{name.replace('_', '-')}: {value};" for name, value in PALETTE.items()
+    )
+    return f":root {{\n{variables}\n}}\n{_CSS}"
+
+
 def apply_theme() -> None:
     """Inject the global stylesheet.
 
     Called once from the entrypoint. ``st.html`` sends a style-only payload to
     the event container, so it takes no space in the page layout.
     """
-    st.html(f"<style>{_CSS}</style>")
+    st.html(f"<style>{_stylesheet()}</style>")
 
 
 def glyph(name: str) -> str:
@@ -328,6 +345,10 @@ def glyph(name: str) -> str:
     rendering the literal text. There are no emoji anywhere in the app: this and
     ``st.Page``'s icons are the only iconography.
     """
+    # Imported here rather than at module scope so this module stays importable
+    # when a test stubs ``streamlit`` with a bare mock (AGENTS.md).
+    from streamlit.string_util import is_material_icon
+
     if not is_material_icon(name):
         raise ValueError(
             f"{name!r} is not a Material Symbols icon name; "
@@ -376,18 +397,35 @@ def section_header(title: str, caption: str | None = None) -> None:
     st.html(f'<div class="td-sec"><h3 class="td-sec__title">{title}</h3>{cap_html}</div>')
 
 
-def feature_card(
-    *,
-    key: str,
+def metric_row(items: Iterable[Sequence[str]], columns: Optional[int] = None) -> None:
+    """Render one row of KPI cards.
+
+    Each item is ``(label, value)`` or ``(label, value, delta)``; ``columns``
+    defaults to one column per item, so callers never repeat the
+    ``st.columns``/``st.metric`` pair by hand.
+    """
+    items = list(items)
+    if not items:
+        return
+
+    for column, item in zip(st.columns(columns or len(items)), items):
+        label, value, *rest = item
+        column.metric(label, value, delta=rest[0] if rest else None)
+
+
+def card(
     icon: str,
     title: str,
     body: str,
-    page: str,
-    label: str = "Open",
+    *,
+    key: Optional[str] = None,
+    action: Optional[Callable[[], None]] = None,
 ) -> None:
-    """A bordered card with an icon, a description and a deep link to a page.
+    """Render a bordered card: an icon badge, a title and supporting copy.
 
-    ``icon`` is a Material Symbols name, rendered by :func:`glyph`.
+    ``key`` gives the container a stable identity (its ``st-key-<key>`` class is
+    what the hover styling targets); ``action`` renders an optional footer, such
+    as the page link :func:`feature_card` adds.
     """
     with st.container(border=True, key=key):
         st.markdown(
@@ -398,7 +436,30 @@ def feature_card(
             "</div>",
             unsafe_allow_html=True,
         )
-        st.page_link(page, label=label, width="stretch")
+        if action is not None:
+            action()
+
+
+def feature_card(
+    *,
+    key: str,
+    icon: str,
+    title: str,
+    body: str,
+    page: str,
+    label: str = "Open",
+) -> None:
+    """A :func:`card` that links through to ``page``.
+
+    ``icon`` is a Material Symbols name, rendered by :func:`glyph`.
+    """
+    card(
+        icon,
+        title,
+        body,
+        key=key,
+        action=lambda: st.page_link(page, label=label, width="stretch"),
+    )
 
 
 def footer() -> None:

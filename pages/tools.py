@@ -38,9 +38,12 @@ def main() -> None:
             column.button(f"{preset:+g}%", on_click=set_percent, args=(preset,))
 
     result = apply_change(value, percent)
-    r1, r2 = st.columns(2)
-    r1.metric("New value", f"{result:,.2f}")
-    r2.metric("Change", f"{result - value:+,.2f}")
+    theme.metric_row(
+        (
+            ("New value", f"{result:,.2f}"),
+            ("Change", f"{result - value:+,.2f}"),
+        )
+    )
 
 
 if __name__ == "__main__":

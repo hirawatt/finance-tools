@@ -36,7 +36,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import pandas as pd
 
@@ -427,37 +427,40 @@ def fetch_universe_data(
     frames: Dict[str, pd.DataFrame] = {}
     failures: Dict[str, List[str]] = {}
 
+    def capture(name: str, build: Callable[[], pd.DataFrame]) -> None:
+        """Record one dataset, so one flaky provider cannot cost the night."""
+        try:
+            frames[name] = build()
+        except Exception as exc:
+            failures[name] = [f"{type(exc).__name__}: {exc}"]
+
     company = pd.DataFrame()
-    try:
-        prices, benchmark_series = fetch_price_history(symbols, period=period, benchmark=benchmark)
-        frames["prices"] = prices_to_frame(prices, benchmark_series)
-    except Exception as exc:
-        failures["prices"] = [f"{type(exc).__name__}: {exc}"]
 
-    try:
+    def company_data() -> pd.DataFrame:
+        # Kept in the enclosing scope: the Z-scores below need the market caps.
+        nonlocal company
         company = fetch_company_data(symbols, COMPANY_FIELDS)
-        frames["company_data"] = company.reset_index()
-    except Exception as exc:
-        failures["company_data"] = [f"{type(exc).__name__}: {exc}"]
+        return company.reset_index()
 
-    try:
+    def default_risk() -> pd.DataFrame:
         caps: Dict[str, float] = {}
         if not company.empty and "Market cap" in company.columns:
             caps = company["Market cap"].dropna().to_dict()
-        risk = fetch_default_risk(symbols, pd.Series(caps, dtype=float))
-        frames["default_risk"] = risk.reset_index()
-    except Exception as exc:
-        failures["default_risk"] = [f"{type(exc).__name__}: {exc}"]
+        return fetch_default_risk(symbols, pd.Series(caps, dtype=float)).reset_index()
 
-    try:
-        frames["earnings"] = earnings_to_frame(fetch_earnings_calendar(symbols, today=today))
-    except Exception as exc:
-        failures["earnings"] = [f"{type(exc).__name__}: {exc}"]
-
-    try:
-        frames["surveillance"] = fetch_surveillance()
-    except Exception as exc:
-        failures["surveillance"] = [f"{type(exc).__name__}: {exc}"]
+    capture(
+        "prices",
+        lambda: prices_to_frame(
+            *fetch_price_history(symbols, period=period, benchmark=benchmark)
+        ),
+    )
+    capture("company_data", company_data)
+    capture("default_risk", default_risk)
+    capture(
+        "earnings",
+        lambda: earnings_to_frame(fetch_earnings_calendar(symbols, today=today)),
+    )
+    capture("surveillance", fetch_surveillance)
 
     return frames, failures
 

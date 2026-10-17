@@ -9,9 +9,8 @@ Guidance for coding agents working in this repository.
   commits. Use the Material Symbols font Streamlit already bundles for
   iconography — `:material/<name>:` for `st.Page`/widget `icon=` arguments, and
   `utils.theme.glyph("<name>")` inside custom HTML — with committed SVG brand
-  marks in `assets/` (`favicon.svg`, `logo.svg`, `logo-mark.svg`) for the
-  favicon and the sidebar lockup. `tests/test_style.py` fails the build if an
-  emoji creeps back in.
+  marks in `assets/` (`favicon.svg`, `logo.svg`) for the favicon and the sidebar
+  lockup. `tests/test_style.py` fails the build if an emoji creeps back in.
 
 ## Project
 
@@ -66,6 +65,9 @@ uv run pytest -q
   palettes) plus `utils/theme.py` (the stylesheet Streamlit cannot express, and
   helpers such as `page_header`). Change the look there, not with per-page CSS,
   and import `utils.theme` only where the tests do not stub `sys.modules`.
+- Analytics sections on the Co-Pilot are one renderer per section over a shared
+  `AnalyticsContext`, registered in `SECTIONS`; add a section by writing a
+  renderer and adding it to that mapping, and the tests pick it up.
 - Cache network/Streamlit calls with `@st.cache_data`.
 - Dependencies are declared in `pyproject.toml` and locked in `uv.lock`; change
   them with `uv add` / `uv remove` (or by editing `pyproject.toml` plus

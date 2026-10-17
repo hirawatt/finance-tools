@@ -1,14 +1,20 @@
+"""Co-Pilot — portfolio analytics, risk and rebalancing.
+
+Charts are built with :mod:`utils.charts` and the shared display config in
+:mod:`utils.theme`, so every view uses the same palette, axes and hover grammar.
+Analytics sections are one renderer per section over a shared
+:class:`AnalyticsContext`, registered in :data:`SECTIONS`.
+"""
+
 import streamlit as st
 import numpy as np
 import pandas as pd
-import plotly.express as px
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple
-from plotly.graph_objs._figure import Figure
 
-from utils import brokers, holdings, portfolio_store, snapshot, theme
+from utils import brokers, charts, holdings, portfolio_store, snapshot, theme
 from utils.theme import printf_format
 from utils.rebalancing import (
     STRATEGIES,
@@ -35,10 +41,12 @@ from utils.market_data import (
 from utils.red_flags import detect_red_flags, flag_summary
 from utils.surveillance import check_symbols
 
+
 @st.cache_data(ttl=3600)
 def load_sectors() -> pd.DataFrame:
     """Sector lookup used by the sector-allocation chart."""
     return pd.read_csv('./data/stock-sector.csv').rename(columns={"NSE code": "Symbol"})
+
 
 @st.cache_data(ttl=3600)
 def load_sample_holdings() -> pd.DataFrame:
@@ -49,6 +57,7 @@ def load_sample_holdings() -> pd.DataFrame:
     """
     data = Path('./data/holdings-sample.xlsx').read_bytes()
     return brokers.import_holdings(data, 'holdings-sample.xlsx').core
+
 
 @st.cache_resource(show_spinner=False)
 def snapshot_store():
@@ -64,20 +73,24 @@ def snapshot_store():
         secrets = {}
     return snapshot.SnapshotConfig.from_secrets(secrets).store()
 
+
 @st.cache_data(ttl=3600, max_entries=32, show_spinner="Fetching market data…")
 def load_price_history(symbols: Tuple[str, ...], period: str) -> Tuple[pd.DataFrame, Optional[pd.Series]]:
     """Daily price history, served from the nightly snapshot where possible."""
     return snapshot.load_prices(symbols, period=period, store=snapshot_store())
+
 
 @st.cache_data(ttl=3600, max_entries=32, show_spinner="Fetching fundamentals…")
 def load_company_data(symbols: Tuple[str, ...]) -> pd.DataFrame:
     """Fundamentals (valuation + risk), served from the snapshot where possible."""
     return snapshot.load_company_data(symbols, COMPANY_FIELDS, store=snapshot_store())
 
+
 @st.cache_data(ttl=21600, show_spinner="Fetching NSE surveillance lists…")
 def load_surveillance() -> pd.DataFrame:
     """NSE ASM/GSM surveillance lists (refreshed daily)."""
     return snapshot.load_surveillance(store=snapshot_store())
+
 
 @st.cache_data(ttl=21600, max_entries=32, show_spinner="Crunching company statements…")
 def load_default_risk(symbols: Tuple[str, ...], market_caps: Dict[str, float]) -> pd.DataFrame:
@@ -86,33 +99,11 @@ def load_default_risk(symbols: Tuple[str, ...], market_caps: Dict[str, float]) -
         symbols, pd.Series(market_caps), store=snapshot_store()
     )
 
+
 @st.cache_data(ttl=3600, max_entries=32, show_spinner="Fetching earnings calendar…")
 def load_earnings(symbols: Tuple[str, ...]) -> pd.DataFrame:
     """Upcoming earnings dates for the given symbols, snapshot-first."""
     return snapshot.load_earnings(symbols, store=snapshot_store())
-
-def create_charts(df: pd.DataFrame, df_with_sectors: pd.DataFrame) -> Tuple[Figure, Figure]:
-    """Create portfolio charts"""
-    symbol_fig = px.pie(df, values="Invested Value", names="Symbol", template="plotly_white")
-    sector_fig = px.pie(df_with_sectors, values="Invested Value", names="Sector", template="plotly_white")
-    
-    for fig in [symbol_fig, sector_fig]:
-        fig.update_layout(margin=dict(t=0, b=0, l=0, r=0))
-        fig.update_traces(textposition='inside', textinfo='percent+label')
-    
-    return symbol_fig, sector_fig
-
-def format_summary(summary: pd.Series) -> pd.Series:
-    """Format a numeric performance summary for display."""
-    formatted: Dict[str, str] = {}
-    for label, value in summary.items():
-        if pd.isna(value):
-            formatted[label] = "–"
-        elif label in PERCENT_METRICS:
-            formatted[label] = f"{value:.2%}"
-        else:
-            formatted[label] = f"{value:.2f}"
-    return pd.Series(formatted, name="Portfolio")
 
 
 # --------------------------------------------------------------------------- #
@@ -189,58 +180,193 @@ def table(
     )
 
 
+# --------------------------------------------------------------------------- #
+# The portfolio at a glance: distribution and P&L
+# --------------------------------------------------------------------------- #
+def render_allocation(filtered_df: pd.DataFrame, df_with_sectors: pd.DataFrame) -> None:
+    """The portfolio's shape: sector mix, holding ranking and where P&L came from.
+
+    Two complementary views replace the old pair of pies: a donut answers the
+    part-to-whole question (which sector am I actually in?), while a ranking bar
+    answers the ordering question and carries each holding's P&L as colour. A
+    third, signed bar isolates profit and loss — the view every broker console
+    leads with.
+    """
+    total = float(filtered_df["Current Value"].sum())
+
+    by_symbol = (
+        filtered_df.groupby("Symbol")[["Current Value", "Invested Value"]].sum()
+    )
+    by_symbol["P&L"] = by_symbol["Current Value"] - by_symbol["Invested Value"]
+
+    sector = df_with_sectors.copy()
+    sector["Sector"] = sector["Sector"].fillna("Unclassified")
+    by_sector = sector.groupby("Sector")["Current Value"].sum().sort_values(ascending=False)
+
+    left, right = st.columns([1, 1.15])
+    with left:
+        st.subheader("Sector allocation")
+        theme.chart(
+            charts.donut(
+                by_sector,
+                max_slices=8,
+                center_title="Portfolio",
+                center_value=f"₹{total:,.0f}",
+                value_fmt="₹{:,.0f}",
+                height=340,
+            ),
+            alt="Invested value split by sector, with the portfolio total in the centre",
+        )
+    with right:
+        st.subheader("Holdings by value")
+        theme.chart(
+            charts.barh(
+                by_symbol.index,
+                by_symbol["Current Value"],
+                value_fmt="₹{:,.0f}",
+                colors=[charts.GAIN if v >= 0 else charts.LOSS for v in by_symbol["P&L"]],
+                x_title="Current value",
+                height=max(260, 34 * len(by_symbol) + 50),
+            ),
+            alt="Current value of each holding, coloured green for a gain and red for a loss",
+        )
+
+    st.subheader("Profit & loss by holding")
+    theme.chart(
+        charts.diverging_barh(
+            by_symbol.index,
+            by_symbol["P&L"],
+            value_fmt="₹{:+,.0f}",
+            x_title="Profit & loss",
+            height=max(260, 34 * len(by_symbol) + 50),
+        ),
+        alt="Profit and loss in rupees for each holding, green for profits and red for losses",
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Analytics sections
+# --------------------------------------------------------------------------- #
 def render_correlation(ctx: AnalyticsContext) -> None:
     """Correlation heatmap of the holdings' daily returns."""
     corr = correlation_matrix(ctx.returns)
-    fig = px.imshow(
-        corr,
-        text_auto=".2f",
-        zmin=-1,
-        zmax=1,
-        color_continuous_scale="RdBu_r",
-        aspect="auto",
-        template="plotly_white",
-    )
-    fig.update_layout(margin=dict(t=10, b=0, l=0, r=0))
-    st.plotly_chart(
-        fig,
-        width="stretch",
+    if corr.empty:
+        st.info("Not enough overlapping history to compute correlations.")
+        return
+
+    theme.chart(
+        charts.heatmap(corr, height=max(320, 42 * len(corr) + 90)),
         alt="Correlation heatmap of daily returns between the selected holdings",
     )
 
     if len(corr) > 1:
         upper = np.triu(np.ones(corr.shape), k=1).astype(bool)
-        pairs = corr.where(upper).stack().sort_values(ascending=False)
+        pairs = corr.where(upper).stack().dropna().sort_values()
+        extremes = pd.concat([pairs.head(5), pairs.tail(5)]).drop_duplicates()
+        labels = [f"{a} · {b}" for a, b in extremes.index]
+        st.subheader("Strongest and weakest pairs")
+        theme.chart(
+            charts.barh(
+                labels,
+                extremes.to_numpy(),
+                value_fmt="{:+.2f}",
+                colors=[charts.GAIN if v >= 0 else charts.LOSS for v in extremes.to_numpy()],
+                x_title="Correlation of daily returns",
+                height=max(260, 30 * len(extremes) + 50),
+            ),
+            alt="The most positively and negatively correlated pairs of holdings",
+        )
         st.caption(
-            "Most correlated pairs: "
-            + ", ".join(f"{a} / {b} ({v:.2f})" for (a, b), v in pairs.head(3).items())
+            "Closer to +1 means the two move together; closer to −1 means they "
+            "tend to move apart. Low or negative readings are what diversify a book."
         )
 
 
+def _format_metric(label: str, value: float) -> str:
+    """Format one performance metric for a KPI tile."""
+    if pd.isna(value):
+        return "–"
+    if label in PERCENT_METRICS:
+        return f"{value:.2%}"
+    return f"{value:.2f}"
+
+
 def render_beta(ctx: AnalyticsContext) -> None:
-    """Per-holding beta against the benchmark plus the portfolio risk/return."""
+    """Per-holding beta, headline risk/return and the risk-return map."""
     if ctx.benchmark is not None and not ctx.benchmark.empty:
         beta = compute_beta(ctx.returns, ctx.benchmark)
         if beta.empty:
             st.info("Not enough overlap with the benchmark to compute beta.")
         else:
-            table(
-                beta.to_frame(),
-                "{:.2f}",
-                alt="Beta of each holding versus the benchmark",
+            theme.chart(
+                charts.barh(
+                    beta.index,
+                    beta.to_numpy(),
+                    value_fmt="{:.2f}",
+                    color=charts.ACCENT,
+                    threshold=1.0,
+                    threshold_label="Market beta 1.0",
+                    x_title="Beta",
+                    height=max(260, 34 * len(beta) + 50),
+                ),
+                alt=f"Beta of each holding against {BENCHMARK_NAME}, with a reference line at 1",
             )
             st.caption(
                 f"Beta vs {BENCHMARK_NAME}: above 1 moves more than the index, "
-                "below 1 moves less."
+                "below 1 moves less. Bars are ranked so the market-sensitive names "
+                "sit at the top."
             )
     else:
         st.info(f"{BENCHMARK_NAME} history unavailable; beta cannot be computed.")
 
-    st.markdown("**Value-weighted portfolio risk / return**")
-    table(
-        format_summary(performance_summary(ctx.portfolio_returns)).to_frame(),
-        alt="Value-weighted portfolio risk and return metrics",
+    st.subheader("Value-weighted portfolio risk / return")
+    summary = performance_summary(ctx.portfolio_returns)
+    metrics = [
+        (label, _format_metric(label, value)) for label, value in summary.items()
+    ]
+    theme.metric_row(metrics[:4])
+    theme.metric_row(metrics[4:])
+
+    st.subheader("Risk-return map")
+    annualised = pd.DataFrame(
+        {
+            "Return": ctx.returns.mean() * 252 * 100,
+            "Volatility": ctx.returns.std() * np.sqrt(252) * 100,
+        }
+    ).dropna()
+    if annualised.empty:
+        return
+
+    benchmark_vol = None
+    if ctx.benchmark is not None and not ctx.benchmark.empty:
+        bench = ctx.benchmark.pct_change(fill_method=None).dropna()
+        if len(bench) > MIN_OBSERVATIONS:
+            benchmark_vol = float(bench.std() * np.sqrt(252) * 100)
+
+    weights = ctx.weights.reindex(annualised.index).fillna(0.0).clip(lower=0.0)
+    theme.chart(
+        charts.scatter(
+            annualised["Volatility"],
+            annualised["Return"],
+            labels=annualised.index,
+            sizes=(weights + 1e-9).to_numpy(),
+            x_title="Volatility (ann.)",
+            y_title="Return (ann.)",
+            x_fmt="{:,.1f}",
+            y_fmt="{:,.1f}",
+            y_ref=0.0,
+            x_ref=benchmark_vol,
+            height=400,
+        ),
+        alt="Annualised volatility against annualised return for each holding, sized by portfolio weight",
     )
+    note = (
+        f"Marker area is the holding's weight; the dotted vertical line is "
+        f"{BENCHMARK_NAME}'s own volatility. Up and to the left is the better seat."
+        if benchmark_vol is not None
+        else "Marker area is the holding's weight. Up and to the left is the better seat."
+    )
+    st.caption(note)
 
 
 def render_valuation(ctx: AnalyticsContext) -> None:
@@ -267,6 +393,24 @@ def render_valuation(ctx: AnalyticsContext) -> None:
         "earnings); loss-making holdings with no positive P/E are excluded."
     )
 
+    chart_df = fundamentals[["P/E (trailing)"]].dropna()
+    if not chart_df.empty:
+        values = chart_df["P/E (trailing)"]
+        theme.chart(
+            charts.barh(
+                chart_df.index,
+                values.to_numpy(),
+                value_fmt="{:.1f}",
+                colors=[charts.ACCENT if v > 0 else charts.LOSS for v in values],
+                threshold=portfolio_pe,
+                threshold_label=f"Weighted {portfolio_pe:.1f}" if portfolio_pe else None,
+                x_title="Trailing P/E",
+                height=max(260, 34 * len(chart_df) + 50),
+            ),
+            alt="Trailing price-to-earnings of each holding, with the portfolio's weighted P/E as a reference",
+        )
+        st.caption("Red bars are loss-making names, where a trailing P/E is not meaningful.")
+
     detail = fundamentals.copy()
     if ctx.weights.sum() > 0:
         detail.insert(0, "Weight %", ctx.weights.reindex(detail.index) / ctx.weights.sum() * 100)
@@ -283,19 +427,6 @@ def render_valuation(ctx: AnalyticsContext) -> None:
         },
         alt="Valuation multiples and portfolio weight by holding",
     )
-
-    chart_df = fundamentals.reset_index()
-    chart_df = chart_df[chart_df["P/E (trailing)"].notna()]
-    if not chart_df.empty:
-        fig = px.bar(
-            chart_df,
-            x="Symbol",
-            y="P/E (trailing)",
-            template="plotly_white",
-            title="Trailing P/E by holding",
-        )
-        fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
-        st.plotly_chart(fig, width="stretch", alt="Trailing P/E by holding")
 
 
 def _render_fundamental_flags(company_data: pd.DataFrame) -> None:
@@ -321,8 +452,27 @@ def _render_fundamental_flags(company_data: pd.DataFrame) -> None:
         "Rule-based screen over reported fundamentals (leverage, earnings, cash "
         "flow, margins, valuation) — prompts to investigate, not verdicts."
     )
-    table(flag_summary(flags), alt="Red-flag counts by rule")
-    table(flags, hide_index=True, alt="Red flags detected in each holding")
+
+    severity_color = {"high": charts.LOSS, "medium": charts.WARN, "low": "#94A3B8"}
+    rule_counts = (
+        flags.groupby("Flag")
+        .agg(Count=("Symbol", "size"), Severity=("Severity", "first"))
+        .sort_values("Count", ascending=False)
+    )
+    theme.chart(
+        charts.barh(
+            rule_counts.index,
+            rule_counts["Count"].to_numpy(),
+            value_fmt="{:,.0f}",
+            colors=[severity_color.get(s, charts.MUTED) for s in rule_counts["Severity"]],
+            x_title="Flags raised",
+            height=max(240, 34 * len(rule_counts) + 50),
+        ),
+        alt="Count of red flags by rule, coloured by severity",
+    )
+    table(flag_summary(flags), alt="Red-flag counts by holding")
+    with st.expander("Every flag, in detail"):
+        table(flags, hide_index=True, alt="Red flags detected in each holding")
 
 
 def _render_default_risk(default_risk: pd.DataFrame, holdings: int) -> None:
@@ -347,6 +497,26 @@ def _render_default_risk(default_risk: pd.DataFrame, holdings: int) -> None:
         "for non-financial corporates, so read lenders and holding companies with "
         "care. A screen, not a probability model."
     )
+
+    zone_color = {"Safe": charts.GAIN, "Grey": charts.WARN, "Distress": charts.LOSS}
+    fig = charts.vertical_bar(
+        scored.index,
+        scored["Z-score"].to_numpy(),
+        value_fmt="{:.2f}",
+        color=[zone_color.get(z, charts.MUTED) for z in scored["Zone"]],
+        y_title="Z-score",
+        reference=2.99,
+        reference_label="Safe ≥ 2.99",
+        height=340,
+    )
+    fig.add_hline(
+        y=1.81,
+        line=dict(color=charts.MUTED, width=1.4, dash="dash"),
+        annotation_text="Distress < 1.81",
+        annotation_position="bottom left",
+        annotation_font=dict(size=11, color=charts.MUTED),
+    )
+    theme.chart(fig, alt="Altman Z-score of each holding with the safe and distress thresholds")
     table(
         scored,
         {
@@ -446,18 +616,24 @@ def render_rebalance(ctx: AnalyticsContext) -> None:
         )
     )
 
+    st.subheader("Current versus target allocation")
     comparison = plan[["Current %", "Target %"]].reset_index()
-    fig = px.bar(
-        comparison,
-        x="Symbol",
-        y=["Current %", "Target %"],
-        barmode="group",
-        template="plotly_white",
-        title="Current vs target allocation",
+    theme.chart(
+        charts.dumbbell(
+            comparison["Symbol"],
+            comparison["Current %"],
+            comparison["Target %"],
+            start_name="Current",
+            end_name="Target",
+            value_fmt="{:.1f}%",
+            x_title="Weight",
+            height=max(280, 34 * len(comparison) + 60),
+        ),
+        alt="Current versus target portfolio weight for each holding, joined per holding",
     )
-    fig.update_layout(margin=dict(t=40, b=0, l=0, r=0), xaxis_title="", yaxis_title="%")
-    st.plotly_chart(
-        fig, width="stretch", alt="Current versus target weight by holding"
+    st.caption(
+        "The grey dot is the weight today and the blue dot the target; a longer "
+        "connector means a bigger trade."
     )
 
     table(
@@ -498,6 +674,18 @@ def _render_upcoming_earnings(ctx: AnalyticsContext) -> None:
         st.info(f"No earnings expected in the next {horizon_label}.")
         return
 
+    theme.chart(
+        charts.barh(
+            soon["Symbol"],
+            soon["Days away"],
+            value_fmt="{:,.0f}",
+            hover_units=" days away",
+            color=charts.ACCENT,
+            x_title="Days away",
+            height=max(240, 34 * len(soon) + 50),
+        ),
+        alt="Upcoming earnings by holding, with the number of days until each report",
+    )
     table(
         soon,
         {"EPS estimate": "{:,.2f}", "Revenue estimate": "₹{:,.0f}"},
@@ -511,7 +699,8 @@ def _render_price_forecast(ctx: AnalyticsContext) -> None:
     st.subheader("Price forecast")
     st.caption(
         "Monte Carlo projection of the value-weighted portfolio from its recent daily "
-        "returns — a scenario range, not a prediction."
+        "returns — a scenario range, not a prediction. The shaded bands are the 5th–95th "
+        "and 25th–75th percentile outcomes; the line is the median."
     )
     with st.container(horizontal=True, vertical_alignment="bottom"):
         horizon_label = st.segmented_control(
@@ -535,22 +724,15 @@ def _render_price_forecast(ctx: AnalyticsContext) -> None:
     chart = projection.set_axis(
         [last_date + timedelta(days=round(step * 7 / 5)) for step in projection.index]
     )
-    fig = px.line(chart, template="plotly_white")
-    for trace in fig.data:
-        if trace.name == "P50":
-            trace.update(line=dict(width=3, color=theme.ACCENT))
-        else:
-            trace.update(line=dict(width=1, dash="dot"))
-    fig.update_layout(
-        margin=dict(t=20, b=0, l=0, r=0),
-        xaxis_title="Projected date",
-        yaxis_title="Portfolio value (₹)",
-        legend_title="Percentile",
-    )
-    st.plotly_chart(
-        fig,
-        width="stretch",
-        alt="Monte Carlo forecast of the portfolio value: P5, P50 and P95 paths",
+    theme.chart(
+        charts.fan(
+            chart,
+            x=chart.index,
+            x_title="Projected date",
+            y_title="Portfolio value (₹)",
+            height=400,
+        ),
+        alt="Monte Carlo forecast of the portfolio value, showing the 5th to 95th percentile range",
     )
 
     final = projection.iloc[-1]
@@ -577,15 +759,63 @@ def render_outlook(ctx: AnalyticsContext) -> None:
     _render_price_forecast(ctx)
 
 
+def _growth_of_one(ctx: AnalyticsContext) -> Optional[pd.DataFrame]:
+    """The portfolio's cumulative growth, with the benchmark aligned to it."""
+    returns = ctx.portfolio_returns.dropna()
+    if len(returns) < 2:
+        return None
+
+    growth = (1 + returns).cumprod()
+    frame = pd.DataFrame({"Portfolio": growth})
+
+    if ctx.benchmark is not None and not ctx.benchmark.empty:
+        benchmark_returns = (
+            ctx.benchmark.sort_index()
+            .pct_change(fill_method=None)
+            .reindex(growth.index)
+        )
+        benchmark = (1 + benchmark_returns.fillna(0.0)).cumprod()
+        if benchmark.iloc[0] != 0:
+            benchmark = benchmark / benchmark.iloc[0] * growth.iloc[0]
+        frame[BENCHMARK_NAME] = benchmark
+
+    return frame
+
+
 def render_tearsheet(ctx: AnalyticsContext) -> None:
-    """The full quantstats metrics table."""
+    """The equity curve, its drawdown and the quantstats metrics table."""
+    growth = _growth_of_one(ctx)
     report = full_metrics_report(ctx.portfolio_returns)
+
+    if growth is not None:
+        palette = {"Portfolio": charts.ACCENT, BENCHMARK_NAME: charts.MUTED}
+        st.subheader("Growth of ₹1")
+        theme.chart(
+            charts.lines(
+                growth,
+                colors=palette,
+                value_fmt="{:,.3f}",
+                y_title="Growth of ₹1",
+                fill_first=True,
+                height=380,
+            ),
+            alt="Portfolio growth compared with the benchmark, both starting at one rupee",
+        )
+
+        drawdown = growth["Portfolio"] / growth["Portfolio"].cummax() - 1
+        st.subheader("Drawdown")
+        theme.chart(
+            charts.underwater(drawdown, height=260),
+            alt="How far the portfolio has fallen from its own previous peak over time",
+        )
+
     if report.empty:
         st.info("Not enough data to build a tearsheet.")
         return
 
     # quantstats mixes strings and numbers in one column; stringify so Arrow can
     # serialise it for st.dataframe.
+    st.subheader("Metrics")
     table(report.astype(str), alt="Portfolio performance metrics (quantstats)")
 
 
@@ -742,7 +972,7 @@ def main():
         options=sorted(df["Symbol"].unique()),
         default=df["Symbol"].unique()
     )
-    
+
     # Filter and merge data
     filtered_df = df.loc[df["Symbol"].isin(symbols)]
     df_with_sectors = pd.merge(
@@ -771,7 +1001,7 @@ def main():
             ),
         )
     )
-    
+
     # Display Holdings
     with st.expander("Holdings details"):
         st.dataframe(
@@ -786,23 +1016,15 @@ def main():
                 "Current Value": st.column_config.NumberColumn(format="₹%,.0f"),
             },
         )
-    
-    # Display Charts
-    c1, c2 = st.columns(2)
-    symbol_fig, sector_fig = create_charts(filtered_df, df_with_sectors)
-    
-    c1.subheader("Investment distribution")
-    c1.plotly_chart(
-        symbol_fig, width="stretch", alt="Invested value split by holding"
-    )
-    
-    c2.subheader("Sector distribution")
-    c2.plotly_chart(
-        sector_fig, width="stretch", alt="Invested value split by sector"
-    )
 
-    # Analytics (correlation, beta, quantstats)
+    # Distribution and P&L, then the deeper analytics.
+    if filtered_df.empty:
+        st.info("Select at least one symbol to see the portfolio breakdown.")
+    else:
+        render_allocation(filtered_df, df_with_sectors)
+
     render_analytics(filtered_df, list(symbols))
+
 
 if __name__ == "__main__":
     main()

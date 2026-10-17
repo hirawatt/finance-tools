@@ -15,14 +15,15 @@ class MockPackage(MagicMock):
         self.__path__ = []
 
 
-# The page imports pandas/streamlit/plotly at import time. Stub them only while
-# the module is being loaded, so the real packages stay untouched for other
-# tests in the same process.
+# The page imports pandas/streamlit/the chart builders at import time, and the
+# builders import plotly.graph_objects. Stub them only while the module is being
+# loaded, so the real packages stay untouched for other tests in the same process.
 _OVERRIDES = {
     "streamlit": MagicMock(),
     "pandas": MagicMock(),
     "plotly": MockPackage(),
     "plotly.express": MagicMock(),
+    "plotly.graph_objects": MockPackage(),
     "plotly.graph_objs": MockPackage(),
     "plotly.graph_objs._figure": MagicMock(),
 }

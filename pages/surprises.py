@@ -15,8 +15,14 @@ from typing import Callable, Dict, Tuple
 import pandas as pd
 import streamlit as st
 
-from utils import snapshot, theme
-from utils.options import INDEX_SYMBOLS, oi_surges, parity_breaks, put_call_ratio
+from utils import charts, snapshot, theme
+from utils.options import (
+    INDEX_SYMBOLS,
+    implied_forward,
+    oi_surges,
+    parity_breaks,
+    put_call_ratio,
+)
 from utils.pairs import candidate_pairs, rank_pairs
 from utils.volume import volume_anomalies
 
@@ -117,6 +123,53 @@ def _as_of(frame: pd.DataFrame) -> str:
     return "the last snapshot"
 
 
+def _parity_figure(
+    subset: pd.DataFrame, spot: float | None
+) -> tuple[object, str] | tuple[None, None]:
+    """Implied forward against strike for the nearest expiry.
+
+    Put-call parity says the synthetic forward (``strike + call − put``) should
+    sit on one level for every strike of an expiry: a flat line. Plotting it
+    turns a pricing mismatch into a visible outlier rather than a table lookup.
+    """
+    frame = subset.copy()
+    frame["CE Close"] = pd.to_numeric(frame["CE Close"], errors="coerce")
+    frame["PE Close"] = pd.to_numeric(frame["PE Close"], errors="coerce")
+    frame["Implied forward"] = implied_forward(frame)
+    frame = frame[
+        frame["CE Close"].gt(0) & frame["PE Close"].gt(0) & frame["Implied forward"].notna()
+    ]
+    if frame.empty:
+        return None, None
+
+    expiry = sorted(frame["Expiry"].dropna().unique())[0]
+    frame = frame[frame["Expiry"] == expiry].sort_values("Strike")
+
+    futures = (
+        pd.to_numeric(frame["Future close"], errors="coerce").dropna()
+        if "Future close" in frame.columns
+        else pd.Series(dtype=float)
+    )
+    reference = (
+        float(futures.iloc[0])
+        if not futures.empty
+        else float(frame["Implied forward"].median())
+    )
+
+    fig = charts.scatter(
+        frame["Strike"],
+        frame["Implied forward"],
+        x_title="Strike",
+        y_title="Implied forward (₹)",
+        x_fmt="{:,.0f}",
+        y_fmt="{:,.0f}",
+        x_ref=float(spot) if spot else None,
+        y_ref=reference,
+        height=340,
+    )
+    return fig, expiry
+
+
 def render_options_mismatch(universe: Tuple[str, ...]) -> None:
     """Put-call parity breaks across an index's EOD option chain."""
     chain = load_chain()
@@ -155,6 +208,21 @@ def render_options_mismatch(universe: Tuple[str, ...]) -> None:
             ("Breaks found", f"{len(breaks)}"),
         )
     )
+
+    spot_value = float(spot.iloc[-1]) if not spot.empty else None
+    fig, expiry = _parity_figure(subset, spot_value)
+    if fig is not None:
+        theme.chart(
+            fig,
+            alt=(
+                "Implied forward from put-call parity against strike for one expiry, "
+                "with the reference forward as a horizontal line"
+            ),
+        )
+        st.caption(
+            f"Nearest expiry {expiry}: parity says every strike's synthetic forward "
+            "should sit on the reference line; points off it are the mispricing."
+        )
 
     if breaks.empty:
         st.success(
@@ -219,6 +287,36 @@ def render_volume_stocks(universe: Tuple[str, ...]) -> None:
         )
     )
 
+    if not found.empty:
+        returns_pct = (found["Return"] * 100).fillna(0.0)
+        theme.chart(
+            charts.scatter(
+                found["Ratio"],
+                returns_pct,
+                labels=found["Symbol"],
+                sizes=found["Turnover"].fillna(0.0).clip(lower=0.0),
+                color=[
+                    charts.GAIN if value >= 0 else charts.LOSS for value in returns_pct
+                ],
+                x_title="Volume vs average (x)",
+                y_title="Return (%)",
+                x_fmt="{:,.1f}",
+                y_fmt="{:+,.1f}",
+                x_ref=threshold,
+                y_ref=0.0,
+                height=420,
+            ),
+            alt=(
+                "Each volume spike plotted by how many times its average it traded "
+                "against the session's price return, sized by turnover"
+            ),
+        )
+        st.caption(
+            "Marker area is rupee turnover and the dotted vertical line is the flag "
+            "threshold, so a spike that came with a real move stands out from one "
+            "that did not."
+        )
+
     if found.empty:
         st.success("No name traded above the threshold in the latest session.")
     else:
@@ -267,6 +365,25 @@ def render_option_volume(universe: Tuple[str, ...]) -> None:
         )
     )
 
+    if not surges.empty:
+        contracts = [
+            f"{row.Symbol} · {row.Expiry} · {row.Strike:,.0f} {row.Type}"
+            for row in surges.itertuples()
+        ]
+        type_color = {"CE": charts.CATEGORICAL[0], "PE": charts.CATEGORICAL[2]}
+        theme.chart(
+            charts.barh(
+                contracts,
+                surges["OI change"].to_numpy(),
+                value_fmt="{:+,.0f}",
+                colors=[type_color.get(kind, charts.MUTED) for kind in surges["Type"]],
+                hover_units=" contracts",
+                x_title="Change in open interest",
+                height=max(300, 30 * len(surges) + 60),
+            ),
+            alt="Contracts ranked by the session's change in open interest, blue for calls and amber for puts",
+        )
+
     if surges.empty:
         st.success("No fresh positioning stands out in the snapshot.")
     else:
@@ -295,6 +412,25 @@ def render_option_volume(universe: Tuple[str, ...]) -> None:
                     "CE Volume": "{:,.0f}",
                     "PE Volume": "{:,.0f}",
                 },
+            )
+            labels = [
+                f"{row.Symbol} · {row.Expiry}" for row in ratios.itertuples()
+            ]
+            theme.chart(
+                charts.vertical_bar(
+                    labels,
+                    ratios["Put-call ratio"].to_numpy(),
+                    value_fmt="{:.2f}",
+                    color=[
+                        charts.WARN if value > 1 else charts.ACCENT
+                        for value in ratios["Put-call ratio"]
+                    ],
+                    y_title="Put-call ratio",
+                    reference=1.0,
+                    reference_label="Neutral 1.0",
+                    height=320,
+                ),
+                alt="Put-call ratio by underlying and expiry, with the neutral 1.0 line marked",
             )
 
     st.caption(
@@ -339,6 +475,34 @@ def render_pairs(universe: Tuple[str, ...]) -> None:
             ("Stretched", f"{len(ranked)}"),
         )
     )
+
+    if not ranked.empty:
+        labels = [
+            f"{a} / {b}"
+            for a, b in zip(ranked["Symbol A"], ranked["Symbol B"])
+        ]
+        fig = charts.barh(
+            labels,
+            ranked["Spread z"].to_numpy(),
+            value_fmt="{:+.2f}",
+            color=charts.ACCENT,
+            x_title="Spread z-score",
+            threshold=threshold,
+            threshold_label=f"±{threshold:.2f} z",
+            height=max(280, 34 * len(ranked) + 60),
+        )
+        fig.add_vline(
+            x=-threshold,
+            line=dict(color=charts.MUTED, width=1.4, dash="dash"),
+        )
+        theme.chart(
+            fig,
+            alt="Stretched pairs ranked by how many standard deviations their spread sits from its own mean",
+        )
+        st.caption(
+            "A positive z means the first symbol is rich against the second; the "
+            "dashed lines are the flag thresholds either side of zero."
+        )
 
     if ranked.empty:
         st.success("No correlated pair's spread is stretched beyond the threshold.")

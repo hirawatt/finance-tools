@@ -58,6 +58,11 @@ uv run pytest -q
 
 - Keep analytics logic in `utils/` as pure functions over pandas objects so it
   stays testable; keep Streamlit and network concerns in `pages/`.
+- Build every chart with `utils/charts.py` and render it through
+  `theme.chart(fig, alt=...)` so the palette, axes and hover grammar stay
+  consistent — never call `st.plotly_chart` directly or rely on Streamlit's
+  chart theme, which would override the shared styling. Chart builders are pure
+  (pandas in, a plotly figure out) and unit-tested without Streamlit.
 - Register pages in `main.py` with `st.navigation` / `st.Page` (titles, icons
   and order live there); page modules use plain `snake_case` filenames and must
   not call `st.set_page_config`, which the entrypoint owns.

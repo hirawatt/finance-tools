@@ -15,7 +15,7 @@ from typing import Dict, Optional
 import pandas as pd
 import streamlit as st
 
-from utils import brokers, holdings, portfolio_store, theme
+from utils import brokers, charts, holdings, portfolio_store, theme
 from utils.brokers import kite
 from utils.brokers import profiles as profile_library
 
@@ -345,6 +345,23 @@ def _render_preview(result: brokers.BrokerImport, client: str) -> None:
         st.caption(
             f"{summary['isin']} held through the **ISIN** — the same key at every "
             "broker, so re-importing from a second broker merges cleanly."
+        )
+
+    if len(frame) > 1 and frame["Current Value"].sum() > 0:
+        by_holding = (
+            frame.groupby("Symbol")["Current Value"].sum().sort_values(ascending=False)
+        )
+        st.subheader("Allocation preview")
+        theme.chart(
+            charts.donut(
+                by_holding,
+                max_slices=8,
+                center_title="Current value",
+                center_value=f"₹{frame['Current Value'].sum():,.0f}",
+                value_fmt="₹{:,.0f}",
+                height=320,
+            ),
+            alt="How the imported portfolio's current value splits across its largest holdings",
         )
 
     preview = result.resolved.reindex(columns=list(PREVIEW_COLUMNS)).rename(

@@ -98,12 +98,23 @@ at a glance.
   metrics/tables/charts, the sidebar rail, the footer) live in
   [`utils/theme.py`](utils/theme.py) as one stylesheet plus small helpers —
   `apply_theme`, `hero`, `steps`, `page_header`, `section_header`, `metric_row`,
-  `card`, `feature_card`, `glyph`, `footer`.
+  `chart`, `card`, `feature_card`, `glyph`, `footer`.
   It is injected with `st.html`, so a page's markdown elements stay exactly as
   the page wrote them. Keep angle brackets out of that stylesheet: Streamlit
   drops a style-only `st.html` payload whose text contains a tag-like sequence,
   which would silently strip the whole theme
   ([`tests/test_style.py`](tests/test_style.py) guards it).
+- **Charts** are built by [`utils/charts.py`](utils/charts.py) — ranking bars,
+  diverging and dumbbell comparisons, donuts, correlation heatmaps, forecast
+  fans, scatters and distributions — over one palette, axis treatment and hover
+  grammar, and rendered through `theme.chart(...)` with an `alt` description.
+  The design leans on the best of the field: the [FT Visual
+  Vocabulary](https://github.com/Financial-Times/chart-doctor/tree/main/visual-vocabulary)
+  for choosing the chart type from the relationship in the data, Stripe and
+  Linear for stripped-back chrome, Bloomberg and TradingView for numbers-first
+  density, Koyfin and Simply Wall St for ranked bars and donuts with a centre
+  total, and Zerodha Console and Sensibull for Indian-desk semantics (gains
+  green, losses red, calls and puts set apart).
 - **No emoji, anywhere.** Iconography is [Material Symbols](https://fonts.google.com/icons),
   the font Streamlit already bundles: `:material/<name>:` where a page is
   registered in `main.py` (and for widget `icon=` arguments), and
@@ -210,6 +221,7 @@ instead of building it on the host.
 - [x] Streamlit-native multipage navigation with `st.navigation` / `st.Page`
 - [x] Shared trading-terminal theme (brand palette, Inter/JetBrains Mono, carded metrics and tables)
 - [x] Modern Streamlit UI pass (segmented controls, pill filters, responsive control rows, sparkline metrics, `column_config` tables, accessible charts)
+- [x] Shared chart design system ([`utils/charts.py`](utils/charts.py)): ranking, diverging, dumbbell, donut, heatmap, fan, scatter and histogram builders over one palette and hover grammar, wired through `theme.chart`; the Co-Pilot and Due Diligence desks now lead with them
 - [x] Tool Directory: a linked logo grid of the external platforms used around the dashboard
 - [x] Privacy-first portfolio storage: session-only by default, with an opt-in local `portfolios/` backend behind a `PortfolioStore` seam (PocketBase-ready for a later client book)
 - [x] Branded home page: app mark and name, an illustrated hero, a four-step workflow strip, headline stats and the tool cards, with a README screenshot

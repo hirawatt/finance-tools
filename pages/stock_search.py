@@ -3,7 +3,7 @@
 import streamlit as st
 import pandas as pd
 
-from utils import theme
+from utils import charts, theme
 
 
 @st.cache_data
@@ -76,6 +76,33 @@ def main() -> None:
     )
     in_budget = (small_cap["Price"] <= max_stock_price) & (small_cap["Price"] >= min_stock_price)
     stock_search = small_cap[in_budget]
+
+    theme.section_header(
+        "Price distribution",
+        "Where the small-cap universe sits by price — the budget band is marked.",
+    )
+    affordable = small_cap["Price"]
+    affordable = affordable[(affordable > 0) & (affordable <= max_stock_price * 1.5)]
+    if not affordable.empty:
+        theme.chart(
+            charts.histogram(
+                affordable,
+                bins=40,
+                markers=(
+                    (min_stock_price, f"Min ₹{min_stock_price:,.0f}"),
+                    (max_stock_price, f"Cap ₹{max_stock_price:,.0f}"),
+                ),
+                x_title="Price (₹)",
+                y_title="Companies",
+                height=320,
+            ),
+            alt="Distribution of small-cap share prices, with the budget floor and cap marked",
+        )
+        st.caption(
+            "Prices above the cap are left out of the plot so the band stays "
+            "readable; a flat, empty middle means few names sit in the budget."
+        )
+
     held = st.multiselect("Stocks already in your portfolio", stock_search["Name"])
 
     candidates = stock_search[~stock_search["Name"].isin(held)]

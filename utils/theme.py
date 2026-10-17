@@ -3,9 +3,10 @@
 Streamlit's native theming (``.streamlit/config.toml``) owns the colours, fonts
 and radii. This module fills the gaps it cannot reach — the hero banner on the
 home page, carded metric/chart/table surfaces, sidebar polish — and exposes a
-handful of small helpers so every page renders its headings and icons the same
-way. Iconography is Material Symbols (the font Streamlit bundles); there are no
-emoji in the app, its pages or its docs.
+handful of small helpers so every page renders its headings, icons and charts
+the same way. Chart *construction* lives in :mod:`utils.charts`; :func:`chart`
+here is only the shared display wrapper. Iconography is Material Symbols (the
+font Streamlit bundles); there are no emoji in the app, its pages or its docs.
 
 Everything here is injected with :func:`st.html` rather than ``st.markdown``:
 ``st.html`` renders to its own element type, so a page's list of markdown
@@ -50,6 +51,15 @@ PALETTE = {
 #: The accent, for pages that hand-colour plotly traces Streamlit's chart theme
 #: does not reach.
 ACCENT = PALETTE["accent"]
+
+#: Plotly config shared by every figure. The logo is dropped, and the select /
+#: lasso tools (which do not fit a financial dashboard) go with it, leaving
+#: zoom, pan, reset and the PNG export.
+PLOTLY_CONFIG = {
+    "displaylogo": False,
+    "responsive": True,
+    "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d"],
+}
 
 _CSS = """
 /* ---- Frame -------------------------------------------------------- */
@@ -636,6 +646,19 @@ def section_header(title: str, caption: str | None = None) -> None:
     """Render a section heading with an optional caption underneath."""
     cap_html = f'<p class="td-sec__cap">{caption}</p>' if caption else ""
     st.html(f'<div class="td-sec"><h3 class="td-sec__title">{title}</h3>{cap_html}</div>')
+
+
+def chart(fig, *, alt: str | None = None, key: str | None = None) -> None:
+    """Render a Plotly figure with the dashboard's shared display config.
+
+    ``theme="streamlit"`` is deliberately *not* used: the figures are styled by
+    :mod:`utils.charts`, and letting Streamlit re-theme them would override the
+    palette, fonts and axis treatment the module sets. ``alt`` describes the
+    chart for screen readers and is required on every call.
+    """
+    st.plotly_chart(
+        fig, width="stretch", alt=alt, config=PLOTLY_CONFIG, theme=None, key=key
+    )
 
 
 def metric_row(items: Iterable[Sequence], columns: Optional[int] = None) -> None:

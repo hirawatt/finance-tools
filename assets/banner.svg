@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" role="img" aria-label="The Trading Dashboard by Hirawat">
+  <defs>
+    <linearGradient id="markFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#1F6FEB" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#1F6FEB" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="1"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 H0 V40" fill="none" stroke="#E2E8F0" stroke-width="1"/>
+    </pattern>
+    <mask id="fadeMask">
+      <rect width="1200" height="320" fill="url(#fade)"/>
+    </mask>
+    <clipPath id="card">
+      <rect width="1200" height="320" rx="20"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#card)">
+    <rect width="1200" height="320" fill="#F8FAFC"/>
+    <ellipse cx="180" cy="60" rx="340" ry="240" fill="url(#glow)"/>
+    <rect width="1200" height="320" fill="url(#grid)" mask="url(#fadeMask)" opacity="0.75"/>
+  </g>
+  <rect x="0.5" y="0.5" width="1199" height="319" rx="20" fill="none" stroke="#E2E8F0"/>
+
+  <g transform="translate(72,74) scale(1.25)">
+    <rect width="64" height="64" rx="16" fill="url(#markFill)"/>
+    <path d="M19 51 L31.5 36.5 L39.5 44.5 L55 27" fill="none" stroke="#FFFFFF"
+          stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="55" cy="27" r="4.5" fill="#FFFFFF"/>
+  </g>
+
+  <g font-family="Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+    <text x="192" y="132" fill="#0B1220" font-size="50" font-weight="700" letter-spacing="-1.2">
+      The Trading Dashboard
+    </text>
+    <text x="194" y="159" fill="#64748B" font-size="11.5" font-weight="600" letter-spacing="3.6">
+      BY HIRAWAT
+    </text>
+    <text x="194" y="190" fill="#64748B" font-size="16.5" font-weight="400">
+      Capital-markets analytics for Indian portfolios, watchlists and trade ideas
+    </text>
+
+    <g font-size="12.5" font-weight="600" fill="#1F6FEB">
+      <rect x="194" y="222" width="145" height="32" rx="16" fill="#FFFFFF"
+            stroke="#1F6FEB" stroke-opacity="0.35"/>
+      <text x="208" y="243">Co-Pilot analytics</text>
+
+      <rect x="351" y="222" width="145" height="32" rx="16" fill="#FFFFFF"
+            stroke="#1F6FEB" stroke-opacity="0.35"/>
+      <text x="365" y="243">Red-flag screening</text>
+
+      <rect x="508" y="222" width="190" height="32" rx="16" fill="#FFFFFF"
+            stroke="#1F6FEB" stroke-opacity="0.35"/>
+      <circle cx="522" cy="238" r="3.5" fill="#12B886"/>
+      <text x="532" y="243">Nightly market snapshot</text>
+    </g>
+  </g>
+</svg>

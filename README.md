@@ -1,12 +1,25 @@
-# Finance-Tools
+<img src="assets/banner.png" alt="The Trading Dashboard by Hirawat — capital-markets analytics for Indian portfolios, watchlists and trade ideas" width="100%">
 
-A collection of financial analysis tools to help investors make data-driven decisions.
+**The Trading Dashboard by Hirawat** (`finance-tools`) is a
+Streamlit app for Indian capital-markets analysis: portfolio analytics,
+trade-idea screening and watchlist tooling over NSE/BSE data — the numbers that
+matter, without the noise.
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://finance-tools.streamlit.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/hirawatt?label=GitHub%20Sponsors&style=social)](https://github.com/sponsors/hirawatt)
 [![Python Version](https://img.shields.io/badge/python-3.15%2B-blue)](https://www.python.org/downloads/)
 [![Last Commit](https://img.shields.io/github/last-commit/hirawatt/finance-tools)](https://github.com/hirawatt/finance-tools)
+
+## What it looks like
+
+![The Trading Dashboard home page: a branded hero, headline stats, a four-step workflow strip and the featured-tools grid](assets/screenshots/home.png)
+
+The home page opens with the app's mark and name, the headline counts behind it
+(watchlists, companies, sectors), a four-step **what you can do here** strip —
+bring your portfolio, analyse and optimise, screen and decide, stay current —
+and a card per tool. Every other page opens with the same header, a one-line
+subtitle and an accent rule, and closes with the shared footer.
 
 ## Featured Tools
 
@@ -56,7 +69,7 @@ so the sidebar's titles, icons and order all live in one place.
 
 | Page | Module | Purpose |
 | --- | --- | --- |
-| Home | `main.py` | Landing page, headline stats and the data guide |
+| Home | `main.py` | Branded landing page: hero, headline stats, workflow strip, tool cards and the data guide |
 | Co-Pilot | `pages/portfolio_analysis.py` | Portfolio analytics, risk and rebalancing |
 | Idea Generation | `pages/stocks_to_trade.py` | Candidate trade ideas |
 | Due Diligence | `pages/surprises.py` | Surprise and unusual-activity checks |
@@ -80,22 +93,31 @@ at a glance.
   — Inter for the interface, JetBrains Mono for code and tickers, plus
   categorical/sequential/diverging chart palettes that keep multi-series plots
   legible. Restart the app after editing it.
-- **Gaps Streamlit cannot theme** (the home hero, carded metrics/tables/charts,
-  the sidebar rail, the footer) live in [`utils/theme.py`](utils/theme.py) as one
-  stylesheet plus small helpers — `apply_theme`, `hero`, `page_header`,
-  `section_header`, `metric_row`, `card`, `feature_card`, `glyph`, `footer`.
+- **Gaps Streamlit cannot theme** (the home hero, the workflow strip, carded
+  metrics/tables/charts, the sidebar rail, the footer) live in
+  [`utils/theme.py`](utils/theme.py) as one stylesheet plus small helpers —
+  `apply_theme`, `hero`, `steps`, `page_header`, `section_header`, `metric_row`,
+  `card`, `feature_card`, `glyph`, `footer`.
   It is injected with `st.html`, so a page's markdown elements stay exactly as
-  the page wrote them.
+  the page wrote them. Keep angle brackets out of that stylesheet: Streamlit
+  drops a style-only `st.html` payload whose text contains a tag-like sequence,
+  which would silently strip the whole theme
+  ([`tests/test_style.py`](tests/test_style.py) guards it).
 - **No emoji, anywhere.** Iconography is [Material Symbols](https://fonts.google.com/icons),
   the font Streamlit already bundles: `:material/<name>:` where a page is
   registered in `main.py` (and for widget `icon=` arguments), and
   `theme.glyph("<name>")` inside custom HTML. [`tests/test_style.py`](tests/test_style.py)
   fails the build if an emoji creeps back in.
-- **Brand marks are committed files** in `assets/` — `favicon.svg` (the browser
-  tab icon, set as `page_icon`, and the collapsed sidebar mark) and `logo.svg`
-  (the sidebar lockup), plus the tool-directory logos in `assets/logos/` (see
-  that folder's README for provenance) — so the app never fetches a mark at
-  runtime and the container image needs no network for its own chrome.
+- **Brand marks are committed files** in `assets/` — the browser-tab icon
+  `favicon.svg`, the high-resolution `app-icon.svg` (the hero lockup and the
+  app's square mark), `logo.svg` (the sidebar lockup), `hero-graphic.svg` (the
+  home hero illustration), `banner.svg` with its rendered `banner.png` (the
+  README header), `social-card.svg` (link previews) and the tool-directory
+  logos in `assets/logos/` (see that folder's README for provenance) — so the
+  app never fetches a mark at runtime and the container image needs no network
+  for its own chrome. `assets/screenshots/` holds the README's app capture; see
+  [`assets/README.md`](assets/README.md) for what each file is and how the
+  raster ones are regenerated.
 
 When adding a page, register it in `main.py` with a title and a
 `:material/icon_name:` icon, and open the content with `theme.page_header(...)`
@@ -176,6 +198,8 @@ docker run --rm -p 8501:8501 -v "$PWD/indices:/app/indices" ghcr.io/hirawatt/fin
 - [x] Shared trading-terminal theme (brand palette, Inter/JetBrains Mono, carded metrics and tables)
 - [x] Modern Streamlit UI pass (segmented controls, pill filters, responsive control rows, sparkline metrics, `column_config` tables, accessible charts)
 - [x] Tool Directory: a linked logo grid of the external platforms used around the dashboard
+- [x] Branded home page: app mark and name, an illustrated hero, a four-step workflow strip, headline stats and the tool cards, with a README screenshot
+- [x] Fix: the theme stylesheet was silently dropped by Streamlit's sanitiser (a tag-like sequence in a CSS comment), leaving every page unstyled
 
 ## Portfolio Analysis Flow
 

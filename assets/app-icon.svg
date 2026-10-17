@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="The Trading Dashboard">
+  <defs>
+    <linearGradient id="appIconMark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#appIconMark)"/>
+  <path d="M104 356 L200 248 L272 320 L400 168" fill="none" stroke="#FFFFFF"
+        stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="400" cy="168" r="40" fill="#FFFFFF"/>
+</svg>

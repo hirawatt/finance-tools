@@ -78,7 +78,10 @@ _CSS = """
 
 /* ---- Icons -------------------------------------------------------- */
 /* Material Symbols, the font Streamlit already bundles for navigation. No
-   emoji: the same vocabulary as ``st.Page(icon=":material/<name>:")``. */
+   emoji: the same vocabulary as st.Page's :material/icon_name: icons. Keep
+   angle brackets out of this stylesheet: Streamlit drops a style-only st.html
+   payload whose text holds a tag-like angle-bracket sequence, which would
+   silently strip the whole theme (see the guard in tests/test_style.py). */
 .td-i {
   font-family: "Material Symbols Rounded";
   font-weight: normal;
@@ -198,6 +201,10 @@ hr { border-color: var(--td-line); margin: 1.15rem 0; }
 .td-hero {
   position: relative;
   overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: center;
+  gap: clamp(1.2rem, 3vw, 2.5rem);
   margin-bottom: 0.4rem;
   padding: clamp(1.6rem, 3.5vw, 3rem);
   border-radius: 1.1rem;
@@ -208,6 +215,8 @@ hr { border-color: var(--td-line); margin: 1.15rem 0; }
     linear-gradient(135deg, #0A1729 0%, #0E2A4D 55%, #0A1729 100%);
   box-shadow: var(--td-shadow-md);
 }
+/* A single column when there is no illustration. */
+.td-hero:not(:has(.td-hero__art)) { grid-template-columns: 1fr; }
 .td-hero::after {
   content: "";
   position: absolute;
@@ -219,6 +228,64 @@ hr { border-color: var(--td-line); margin: 1.15rem 0; }
   background-size: 44px 44px;
   -webkit-mask-image: radial-gradient(700px 300px at 20% 0%, #000 0%, transparent 80%);
   mask-image: radial-gradient(700px 300px at 20% 0%, #000 0%, transparent 80%);
+}
+.td-hero__body { position: relative; min-width: 0; }
+/* The brand lockup above the eyebrow: the app mark plus name and byline. */
+.td-hero__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 1.1rem;
+}
+.td-hero__mark {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 6px 18px rgba(2, 8, 23, 0.45);
+}
+.td-hero__name {
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #FFFFFF;
+}
+.td-hero__byline {
+  margin-top: 0.1rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8FB6F5;
+}
+.td-hero__art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+.td-hero__art img {
+  width: 100%;
+  max-width: 31rem;
+  height: auto;
+  filter: drop-shadow(0 18px 40px rgba(2, 8, 23, 0.45));
+}
+/* Stack the hero on narrow screens, and let the illustration go: it is
+   decorative and costs a lot of vertical space on a phone. Declared after the
+   base rules above so it is not overridden by their ``display``. */
+@media (max-width: 880px) {
+  .td-hero { grid-template-columns: 1fr; }
+  .td-hero__art { display: none; }
+}
+/* Let a row of KPI tiles wrap instead of squeezing their labels. */
+@media (max-width: 1000px) {
+  [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] [data-testid="stMetric"]) {
+    flex-wrap: wrap;
+  }
+  [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] [data-testid="stMetric"])
+    > [data-testid="stColumn"] {
+    flex: 1 1 44%;
+    min-width: 9rem;
+  }
 }
 .td-hero__eyebrow {
   position: relative;
@@ -305,6 +372,46 @@ hr { border-color: var(--td-line); margin: 1.15rem 0; }
 [class*="st-key-td-card"]:hover [data-testid="stVerticalBlock"] {
   border-color: rgba(31, 111, 235, 0.5);
 }
+
+/* ---- Workflow steps ----------------------------------------------- */
+/* The home page's "what you can do here" strip: a numbered run of cards. */
+.td-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+  gap: 1rem;
+}
+.td-step {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.15rem 1.2rem 1.2rem;
+  border: 1px solid var(--td-line);
+  border-radius: var(--td-radius);
+  background: var(--td-surface);
+  box-shadow: var(--td-shadow-sm);
+  transition: transform 0.16s ease, border-color 0.16s ease;
+}
+.td-step:hover { transform: translateY(-2px); border-color: rgba(31, 111, 235, 0.5); }
+.td-step__top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.td-step__icon {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 0.7rem;
+  background: var(--td-accent-soft);
+  color: var(--td-accent);
+  font-size: 1.3rem;
+}
+.td-step__num {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--td-muted);
+}
+.td-step__title { font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; color: var(--td-ink); }
+.td-step__body { margin: 0; color: var(--td-muted); font-size: 0.89rem; line-height: 1.55; }
 
 /* ---- Tool directory ----------------------------------------------- */
 /* A responsive logo wall: as many cards per row as the width allows. */
@@ -444,22 +551,74 @@ def hero(
     title: str,
     subtitle: str,
     chips: tuple[tuple[str, str], ...] = (),
+    *,
+    graphic: Optional[str] = None,
+    mark: Optional[str] = None,
+    name: Optional[str] = None,
+    byline: Optional[str] = None,
 ) -> None:
     """Render the dark hero banner at the top of a page.
 
     ``chips`` are ``(icon_name, label)`` pairs rendered as pill badges.
+    ``graphic`` is an optional image (a path relative to the repository root,
+    inlined as a data URI) shown in the right-hand column — it is decorative, so
+    it carries an empty ``alt``. ``mark``, ``name`` and ``byline`` render an
+    optional brand lockup above the eyebrow, and all three are omitted when
+    ``mark`` is not a committed file.
     """
     chip_html = "".join(
-        f'<span class="td-hero__chip">{glyph(name)}{label}</span>' for name, label in chips
+        f'<span class="td-hero__chip">{glyph(g)}{label}</span>' for g, label in chips
     )
+
+    brand = ""
+    mark_uri = _logo_data_uri(mark) if mark else None
+    if mark_uri:
+        name_html = f'<div class="td-hero__name">{escape(name)}</div>' if name else ""
+        byline_html = f'<div class="td-hero__byline">{escape(byline)}</div>' if byline else ""
+        brand = (
+            '<div class="td-hero__brand">'
+            f'<img class="td-hero__mark" src="{mark_uri}" alt="">'
+            f"<div>{name_html}{byline_html}</div>"
+            "</div>"
+        )
+
+    art = ""
+    graphic_uri = _logo_data_uri(graphic) if graphic else None
+    if graphic_uri:
+        art = f'<div class="td-hero__art"><img src="{graphic_uri}" alt=""></div>'
+
     st.html(
         '<section class="td-hero">'
-        f'<div class="td-hero__eyebrow">{eyebrow}</div>'
-        f'<h1 class="td-hero__title">{title}</h1>'
-        f'<p class="td-hero__subtitle">{subtitle}</p>'
+        '<div class="td-hero__body">'
+        + brand
+        + f'<div class="td-hero__eyebrow">{escape(eyebrow)}</div>'
+        f'<h1 class="td-hero__title">{escape(title)}</h1>'
+        f'<p class="td-hero__subtitle">{escape(subtitle)}</p>'
         + (f'<div class="td-hero__chips">{chip_html}</div>' if chip_html else "")
+        + "</div>"
+        + art
         + "</section>"
     )
+
+
+def steps(items: Iterable[tuple[str, str, str]]) -> None:
+    """Render the numbered workflow strip: ``(icon_name, title, body)`` triples.
+
+    A responsive grid of cards, each with a Material Symbols badge and its place
+    in the sequence, used on the home page to explain the app at a glance.
+    """
+    cards = "".join(
+        '<div class="td-step">'
+        '<div class="td-step__top">'
+        f'<div class="td-step__icon">{glyph(icon)}</div>'
+        f'<div class="td-step__num">{index:02d}</div>'
+        "</div>"
+        f'<div class="td-step__title">{escape(title)}</div>'
+        f'<p class="td-step__body">{escape(body)}</p>'
+        "</div>"
+        for index, (icon, title, body) in enumerate(items, start=1)
+    )
+    st.html(f'<div class="td-steps">{cards}</div>')
 
 
 def page_header(title: str, subtitle: str | None = None) -> None:

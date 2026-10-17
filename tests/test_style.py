@@ -52,3 +52,20 @@ def test_no_emoji_in_repository():
             "Emoji are not allowed (see AGENTS.md); use Material Symbols or the "
             "SVGs in assets/ instead:\n  " + "\n  ".join(offenders)
         )
+
+
+def test_stylesheet_survives_the_sanitizer():
+    """The theme stylesheet must stay free of angle brackets.
+
+    ``utils.theme.apply_theme`` passes a style-only payload to ``st.html``.
+    Streamlit drops such an element entirely when its text contains a tag-like
+    ``<name>`` sequence, and because the stylesheet is one element that silently
+    removes the entire theme — the app renders unstyled with no error at all.
+    """
+    from utils import theme
+
+    stylesheet = theme._stylesheet()
+    assert "<" not in stylesheet, (
+        "the theme stylesheet contains '<', which makes Streamlit drop the whole "
+        "style-only st.html payload (see utils/theme.py)"
+    )

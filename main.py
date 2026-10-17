@@ -59,19 +59,23 @@ def dashboard_stats() -> dict[str, int]:
 
 
 def home() -> None:
-    """Landing page: the hero, headline stats, the featured tools and the data guide."""
+    """Landing page: the hero, headline stats, the workflow, the tools and the data guide."""
     theme.hero(
-        eyebrow="Indian capital markets · NSE & BSE",
-        title="The Trading Dashboard",
+        eyebrow="Indian equities · NSE & BSE",
+        title="One desk for Indian market analytics",
         subtitle=(
-            "Capital-markets analysis for Indian portfolios, watchlists and trade "
-            "ideas — the numbers that matter, without the noise."
+            "Portfolio analysis, red-flag screening and trade ideas for NSE and "
+            "BSE — the numbers that matter, without the noise."
         ),
         chips=(
-            ("rocket_launch", "Co-Pilot portfolio analytics"),
-            ("crisis_alert", "Red-flag & default-risk screening"),
-            ("bedtime", "Nightly market-data snapshot"),
+            ("rocket_launch", "Portfolio Co-Pilot"),
+            ("crisis_alert", "Red-flag screening"),
+            ("bedtime", "Nightly data snapshot"),
         ),
+        mark="assets/app-icon.svg",
+        name="The Trading Dashboard",
+        byline="By Hirawat",
+        graphic="assets/hero-graphic.svg",
     )
 
     stats = dashboard_stats()
@@ -81,6 +85,35 @@ def home() -> None:
             ("Companies tracked", f"{stats['companies']:,}"),
             ("Sectors covered", stats["sectors"]),
             ("Tools & views", len(PAGES) - 2),  # every page but Home and About
+        )
+    )
+
+    theme.section_header(
+        "What you can do here",
+        "One desk for the whole workflow — from your holdings to a shortlist.",
+    )
+    theme.steps(
+        (
+            (
+                "upload_file",
+                "Bring your portfolio",
+                "Upload holdings or open a watchlist; the Co-Pilot reads positions, weights and costs.",
+            ),
+            (
+                "insights",
+                "Analyse & optimise",
+                "Sector and stock weights, beta, correlation and PE — then rebalancing ideas.",
+            ),
+            (
+                "travel_explore",
+                "Screen & decide",
+                "Hunt trade candidates and unusual activity across the market.",
+            ),
+            (
+                "cloud_sync",
+                "Stay current",
+                "A nightly snapshot of the universe keeps every view fast and fresh.",
+            ),
         )
     )
 

@@ -81,3 +81,21 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+
+      # The image is in the registry by now, so Coolify only has to pull it and
+      # restart the container. Skipped on pull requests (nothing is pushed) and
+      # when COOLIFY_WEBHOOK is unset, so the workflow stays green until the
+      # Coolify secrets exist. See DEPLOY.md.
+      - name: Trigger Coolify deployment
+        if: github.event_name != 'pull_request'
+        env:
+          COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          if [ -z "$COOLIFY_WEBHOOK" ]; then
+            echo "COOLIFY_WEBHOOK is not set; skipping Coolify deploy."
+            exit 0
+          fi
+          curl --fail --silent --show-error \
+            --request POST "$COOLIFY_WEBHOOK" \
+            --header "Authorization: Bearer $COOLIFY_TOKEN"

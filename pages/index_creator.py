@@ -89,7 +89,7 @@ def upload_watchlist() -> None:
     try:
         df = pd.read_csv(uploaded_file)
         st.success("File uploaded successfully!")
-        st.dataframe(df)
+        st.dataframe(df, alt="Uploaded watchlist preview")
     except Exception as e:
         st.error(f"Error processing file: {e}")
 
@@ -108,6 +108,7 @@ def download_watchlist(index_file: str) -> None:
                 data=f,
                 file_name=f"{index_file}.csv",
                 mime='text/csv',
+                icon=":material/download:",
             )
     except FileNotFoundError:
         st.error("Watchlist file not found")
@@ -127,7 +128,7 @@ def edit_watchlist(index_file: str) -> Optional[List[str]]:
         return None
 
     selected_stocks = st.multiselect(
-        "Manage Stocks in Selected Index/Watchlist",
+        "Manage stocks in the selected index/watchlist",
         constituents,
         constituents,
         help="Select/deselect stocks to modify the index"
@@ -135,7 +136,7 @@ def edit_watchlist(index_file: str) -> Optional[List[str]]:
 
     if selected_stocks != constituents:
         st.warning("You have modified the selection. Save changes?")
-        if st.button("Save Changes"):
+        if st.button("Save changes", type="primary", icon=":material/save:"):
             save_index_symbols(index_file, selected_stocks)
 
     return constituents
@@ -144,7 +145,7 @@ def edit_watchlist(index_file: str) -> Optional[List[str]]:
 def tradingview_panel(constituents: Optional[List[str]]) -> None:
     """Where to paste the watchlist in TradingView, for the sidebar."""
     with st.sidebar:
-        theme.section_header("TradingView Integration")
+        theme.section_header("TradingView integration")
         if constituents:
             st.info("Copy this symbol to TradingView:")
             st.code(create_tv_index_string(constituents), language="text")
@@ -160,15 +161,16 @@ def main():
     if instruments_df.empty:
         st.stop()
 
-    index_file = st.radio(
-        "Select Index/Watchlist",
+    # Thirty-odd watchlists is far past what a radio group can show at once, so
+    # the choice lives in a dropdown.
+    index_file = st.selectbox(
+        "Select index/watchlist",
         get_custom_indices(),
-        horizontal=True,
     )
 
     constituents = edit_watchlist(index_file)
 
-    theme.section_header("File Operations")
+    theme.section_header("File operations")
     upload_column, download_column = st.columns(2)
     with upload_column:
         upload_watchlist()

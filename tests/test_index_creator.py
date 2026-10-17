@@ -44,7 +44,7 @@ def test_save_functionality_in_main():
     mock_df = MagicMock()
     mock_df.empty = False
     mock_st.session_state.instruments_df = mock_df
-    mock_st.radio.return_value = "test_index"
+    mock_st.selectbox.return_value = "test_index"
 
     # Mock st.columns to return exactly 2 items
     col1 = MagicMock()

@@ -100,5 +100,14 @@ class TestPortfolioAnalysis(unittest.TestCase):
         self.assertTrue(hasattr(portfolio_analysis, 'QUANTITY_COLUMNS'))
         self.assertTrue(hasattr(portfolio_analysis, 'REQUIRED_COLUMNS'))
 
+    def test_printf_format_translates_python_specs(self):
+        """Format specs become printf strings for st.column_config.NumberColumn."""
+        translate = portfolio_analysis.printf_format
+        self.assertEqual(translate("₹{:,.0f}"), "₹%,.0f")
+        self.assertEqual(translate("₹{:,.2f}"), "₹%,.2f")
+        self.assertEqual(translate("{:.1f}%"), "%.1f%%")
+        self.assertEqual(translate("{:+,.0f}"), "%+,.0f")
+        self.assertEqual(translate("{:.2f}"), "%.2f")
+
 if __name__ == '__main__':
     unittest.main()

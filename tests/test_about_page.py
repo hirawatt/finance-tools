@@ -20,7 +20,10 @@ def test_about_page_renders_without_secrets():
     at = AppTest.from_file(ABOUT_PATH, default_timeout=30)
     at.run()
     assert not at.exception, f"App raised an exception during run: {at.exception}"
-    assert "Made with" in at.markdown[0].value
+    # The credits line is injected with st.html, so the page's markdown elements
+    # stay reserved for copy.
+    html = " ".join(element.value for element in at.html)
+    assert "Made with" in html
 
 
 def test_credits_merge_over_fallbacks(monkeypatch):

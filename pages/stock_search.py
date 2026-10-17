@@ -31,14 +31,17 @@ def main() -> None:
             max_portfolio_allocation = st.number_input(
                 "Max. allocation per stock (%)", value=10, min_value=1, max_value=100
             )
-            universe = st.multiselect(
-                "Universe", ["Large Cap", "Mid Cap", "Small Cap"], default=["Small Cap"]
+            universe = st.pills(
+                "Universe",
+                ["Large Cap", "Mid Cap", "Small Cap"],
+                selection_mode="multi",
+                default=["Small Cap"],
             )
             submitted = st.form_submit_button("Submit")
         if submitted:
-            st.write(
-                "No. of stocks", no_of_stocks, "· universe", universe,
-                "· min. investment", min_investment,
+            st.caption(
+                f"{no_of_stocks} stocks · {', '.join(universe or []) or 'all caps'} · "
+                f"min. investment ₹{min_investment:,.0f}"
             )
 
     avg_investment_value = round(min_investment / no_of_stocks, 2)
@@ -81,7 +84,14 @@ def main() -> None:
         f"{len(candidates):,} of {len(stock_search):,} stocks in the price band, "
         "excluding the ones you already hold."
     )
-    st.dataframe(candidates, width="stretch", hide_index=True)
+    st.dataframe(
+        candidates,
+        hide_index=True,
+        alt="Small-cap candidates in the price band",
+        column_config={
+            "Price": st.column_config.NumberColumn("Price (₹)", format="₹%.2f"),
+        },
+    )
 
 
 if __name__ == "__main__":

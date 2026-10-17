@@ -728,3 +728,18 @@ class TestCoPilotIntegration:
 
         assert not app.exception
         assert len(app.get("plotly_chart")) >= 1, "correlation heatmap should render"
+
+        # The analytics section switcher lives in a fragment: switching views
+        # reruns only that block, and the chosen section must render without
+        # touching the provider.
+        section = next(
+            control
+            for control in app.segmented_control
+            if control.key == "analytics_section"
+        )
+        section.set_value("Tearsheet")
+        app.run()
+
+        assert not app.exception
+        assert app.segmented_control[1].value == "Tearsheet"
+        assert len(app.dataframe) >= 2, "holdings plus the tearsheet table"

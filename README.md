@@ -171,6 +171,7 @@ docker run --rm -p 8501:8501 -v "$PWD/indices:/app/indices" ghcr.io/hirawatt/fin
 - [x] Multi-arch container image published to [GHCR](https://ghcr.io/hirawatt/finance-tools)
 - [x] Streamlit-native multipage navigation with `st.navigation` / `st.Page`
 - [x] Shared trading-terminal theme (brand palette, Inter/JetBrains Mono, carded metrics and tables)
+- [x] Modern Streamlit UI pass (segmented controls, pill filters, responsive control rows, sparkline metrics, `column_config` tables, accessible charts)
 
 ## Portfolio Analysis Flow
 

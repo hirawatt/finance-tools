@@ -7,10 +7,10 @@ from utils import theme
 # The cross-market checks this desk will run, in display order. The first item
 # is a Material Symbols name (see utils/theme.py).
 SCREENS = (
-    ("compare_arrows", "Options Pricing Mismatch", "Put-call parity breaks that shouldn't be there."),
-    ("difference", "Unusual Moves in Pairs", "Twin stocks drifting apart beyond their usual spread."),
-    ("monitoring", "Unusual Volume in Stocks", "Cash-market prints far above the recent average."),
-    ("candlestick_chart", "Unusual Volume in Options", "Open-interest and volume surges in the derivatives book."),
+    ("compare_arrows", "Options pricing mismatch", "Put-call parity breaks that shouldn't be there."),
+    ("difference", "Unusual moves in pairs", "Twin stocks drifting apart beyond their usual spread."),
+    ("monitoring", "Unusual volume in stocks", "Cash-market prints far above the recent average."),
+    ("candlestick_chart", "Unusual volume in options", "Open-interest and volume surges in the derivatives book."),
 )
 
 

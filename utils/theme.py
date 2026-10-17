@@ -397,12 +397,14 @@ def section_header(title: str, caption: str | None = None) -> None:
     st.html(f'<div class="td-sec"><h3 class="td-sec__title">{title}</h3>{cap_html}</div>')
 
 
-def metric_row(items: Iterable[Sequence[str]], columns: Optional[int] = None) -> None:
+def metric_row(items: Iterable[Sequence], columns: Optional[int] = None) -> None:
     """Render one row of KPI cards.
 
-    Each item is ``(label, value)`` or ``(label, value, delta)``; ``columns``
-    defaults to one column per item, so callers never repeat the
-    ``st.columns``/``st.metric`` pair by hand.
+    Each item is ``(label, value)`` or ``(label, value, delta)``; an optional
+    fourth element is a mapping of extra keyword arguments passed through to
+    :func:`st.metric` — ``chart_data`` for a sparkline, ``delta_description``,
+    ``help``, and so on. ``columns`` defaults to one column per item, so
+    callers never repeat the ``st.columns``/``st.metric`` pair by hand.
     """
     items = list(items)
     if not items:
@@ -410,7 +412,9 @@ def metric_row(items: Iterable[Sequence[str]], columns: Optional[int] = None) ->
 
     for column, item in zip(st.columns(columns or len(items)), items):
         label, value, *rest = item
-        column.metric(label, value, delta=rest[0] if rest else None)
+        delta = rest[0] if rest else None
+        options = rest[1] if len(rest) > 1 else {}
+        column.metric(label, value, delta=delta, **options)
 
 
 def card(

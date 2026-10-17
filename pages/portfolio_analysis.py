@@ -60,12 +60,12 @@ def snapshot_store():
         secrets = {}
     return snapshot.SnapshotConfig.from_secrets(secrets).store()
 
-@st.cache_data(ttl=3600, show_spinner="Fetching market data…")
+@st.cache_data(ttl=3600, max_entries=32, show_spinner="Fetching market data…")
 def load_price_history(symbols: Tuple[str, ...], period: str) -> Tuple[pd.DataFrame, Optional[pd.Series]]:
     """Daily price history, served from the nightly snapshot where possible."""
     return snapshot.load_prices(symbols, period=period, store=snapshot_store())
 
-@st.cache_data(ttl=3600, show_spinner="Fetching fundamentals…")
+@st.cache_data(ttl=3600, max_entries=32, show_spinner="Fetching fundamentals…")
 def load_company_data(symbols: Tuple[str, ...]) -> pd.DataFrame:
     """Fundamentals (valuation + risk), served from the snapshot where possible."""
     return snapshot.load_company_data(symbols, COMPANY_FIELDS, store=snapshot_store())
@@ -75,14 +75,14 @@ def load_surveillance() -> pd.DataFrame:
     """NSE ASM/GSM surveillance lists (refreshed daily)."""
     return snapshot.load_surveillance(store=snapshot_store())
 
-@st.cache_data(ttl=21600, show_spinner="Crunching company statements…")
+@st.cache_data(ttl=21600, max_entries=32, show_spinner="Crunching company statements…")
 def load_default_risk(symbols: Tuple[str, ...], market_caps: Dict[str, float]) -> pd.DataFrame:
     """Altman Z-scores for the given symbols, snapshot-first."""
     return snapshot.load_default_risk(
         symbols, pd.Series(market_caps), store=snapshot_store()
     )
 
-@st.cache_data(ttl=3600, show_spinner="Fetching earnings calendar…")
+@st.cache_data(ttl=3600, max_entries=32, show_spinner="Fetching earnings calendar…")
 def load_earnings(symbols: Tuple[str, ...]) -> pd.DataFrame:
     """Upcoming earnings dates for the given symbols, snapshot-first."""
     return snapshot.load_earnings(symbols, store=snapshot_store())
@@ -163,21 +163,47 @@ def fundamentals_for(ctx: AnalyticsContext) -> pd.DataFrame:
     return load_or_empty(load_company_data, ctx.symbols, what="fundamentals")
 
 
+def printf_format(pattern: str) -> str:
+    """Translate a ``str.format`` number pattern into printf for ``column_config``.
+
+    ``"₹{:,.0f}"`` becomes ``"₹%,.0f"`` and ``"{:.1f}%"`` becomes ``"%.1f%%"``,
+    so the call sites keep writing Python format strings while the cells are
+    formatted by :func:`st.column_config.NumberColumn` — the Streamlit-native
+    way; a pandas Styler is reserved for colouring only.
+    """
+    prefix, _, rest = pattern.partition("{")
+    spec, _, suffix = rest.partition("}")
+    # Drop the format spec's leading ":" ("{:,.0f}" -> ",.0f").
+    return f"{prefix}%{spec.removeprefix(':')}" + suffix.replace("%", "%%")
+
+
 def table(
     data: pd.DataFrame,
     formats=None,
     *,
     hide_index: bool = False,
+    alt: Optional[str] = None,
 ) -> None:
-    """Render a dataframe, applying ``formats`` when given.
+    """Render a dataframe, formatting numbers through ``column_config``.
 
     ``formats`` is either one format string for every column or a mapping of
-    column to format string; missing values always show as an en dash.
+    column to format string; the Python-style specs are translated to the
+    printf style ``st.column_config.NumberColumn`` expects.
     """
+    if formats is None:
+        column_config = None
+    elif isinstance(formats, dict):
+        column_config = {
+            column: st.column_config.NumberColumn(format=printf_format(pattern))
+            for column, pattern in formats.items()
+        }
+    else:
+        column_config = {
+            column: st.column_config.NumberColumn(format=printf_format(formats))
+            for column in data.columns
+        }
     st.dataframe(
-        data.style.format(formats, na_rep="–") if formats is not None else data,
-        width="stretch",
-        hide_index=hide_index,
+        data, hide_index=hide_index, column_config=column_config, alt=alt
     )
 
 
@@ -194,7 +220,11 @@ def render_correlation(ctx: AnalyticsContext) -> None:
         template="plotly_white",
     )
     fig.update_layout(margin=dict(t=10, b=0, l=0, r=0))
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(
+        fig,
+        width="stretch",
+        alt="Correlation heatmap of daily returns between the selected holdings",
+    )
 
     if len(corr) > 1:
         upper = np.triu(np.ones(corr.shape), k=1).astype(bool)
@@ -212,7 +242,11 @@ def render_beta(ctx: AnalyticsContext) -> None:
         if beta.empty:
             st.info("Not enough overlap with the benchmark to compute beta.")
         else:
-            table(beta.to_frame(), "{:.2f}")
+            table(
+                beta.to_frame(),
+                "{:.2f}",
+                alt="Beta of each holding versus the benchmark",
+            )
             st.caption(
                 f"Beta vs {BENCHMARK_NAME}: above 1 moves more than the index, "
                 "below 1 moves less."
@@ -221,7 +255,10 @@ def render_beta(ctx: AnalyticsContext) -> None:
         st.info(f"{BENCHMARK_NAME} history unavailable; beta cannot be computed.")
 
     st.markdown("**Value-weighted portfolio risk / return**")
-    table(format_summary(performance_summary(ctx.portfolio_returns)).to_frame())
+    table(
+        format_summary(performance_summary(ctx.portfolio_returns)).to_frame(),
+        alt="Value-weighted portfolio risk and return metrics",
+    )
 
 
 def render_valuation(ctx: AnalyticsContext) -> None:
@@ -262,6 +299,7 @@ def render_valuation(ctx: AnalyticsContext) -> None:
             "Dividend yield (%)": "{:.2f}",
             "Market cap": "₹{:,.0f}",
         },
+        alt="Valuation multiples and portfolio weight by holding",
     )
 
     chart_df = fundamentals.reset_index()
@@ -275,7 +313,7 @@ def render_valuation(ctx: AnalyticsContext) -> None:
             title="Trailing P/E by holding",
         )
         fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, width="stretch", alt="Trailing P/E by holding")
 
 
 def _render_fundamental_flags(company_data: pd.DataFrame) -> None:
@@ -301,8 +339,8 @@ def _render_fundamental_flags(company_data: pd.DataFrame) -> None:
         "Rule-based screen over reported fundamentals (leverage, earnings, cash "
         "flow, margins, valuation) — prompts to investigate, not verdicts."
     )
-    table(flag_summary(flags))
-    table(flags, hide_index=True)
+    table(flag_summary(flags), alt="Red-flag counts by rule")
+    table(flags, hide_index=True, alt="Red flags detected in each holding")
 
 
 def _render_default_risk(default_risk: pd.DataFrame, holdings: int) -> None:
@@ -335,6 +373,7 @@ def _render_default_risk(default_risk: pd.DataFrame, holdings: int) -> None:
             "Total liabilities": "₹{:,.0f}",
             "EBIT": "₹{:,.0f}",
         },
+        alt="Altman Z-score by holding",
     )
 
 
@@ -364,7 +403,7 @@ def _render_surveillance(ctx: AnalyticsContext) -> None:
             ("Holdings on lists", matched["Symbol"].nunique()),
         )
     )
-    table(matched, hide_index=True)
+    table(matched, hide_index=True, alt="Surveillance list memberships by holding")
 
 
 def render_risk_flags(ctx: AnalyticsContext) -> None:
@@ -391,11 +430,11 @@ def render_rebalance(ctx: AnalyticsContext) -> None:
         "Target allocations are built from daily returns; trades are sized against "
         "current market value at the latest close."
     )
-    c1, c2 = st.columns(2)
-    strategy = c1.selectbox("Target allocation", STRATEGIES, key="rebalance_strategy")
-    max_weight_pct = c2.slider(
-        "Max weight per holding (%)", 5, 100, 25, 5, key="rebalance_cap"
-    )
+    with st.container(horizontal=True, vertical_alignment="bottom"):
+        strategy = st.selectbox("Target allocation", STRATEGIES, key="rebalance_strategy")
+        max_weight_pct = st.slider(
+            "Max weight per holding (%)", 5, 100, 25, 5, key="rebalance_cap"
+        )
 
     latest_prices = ctx.prices.sort_index().ffill().iloc[-1]
     current_values = ctx.filtered_df.groupby("Symbol")["Current Value"].sum().reindex(ctx.usable)
@@ -435,7 +474,9 @@ def render_rebalance(ctx: AnalyticsContext) -> None:
         title="Current vs target allocation",
     )
     fig.update_layout(margin=dict(t=40, b=0, l=0, r=0), xaxis_title="", yaxis_title="%")
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(
+        fig, width="stretch", alt="Current versus target weight by holding"
+    )
 
     table(
         plan,
@@ -450,6 +491,7 @@ def render_rebalance(ctx: AnalyticsContext) -> None:
             "Current %": "{:.1f}%",
             "Target %": "{:.1f}%",
         },
+        alt="Rebalancing plan by holding",
     )
     st.caption("Δ Qty is rounded to whole shares; a negative figure is a sell.")
 
@@ -462,10 +504,12 @@ def _render_upcoming_earnings(ctx: AnalyticsContext) -> None:
         st.info("No upcoming earnings dates available for the selected holdings.")
         return
 
-    horizon_label = st.selectbox(
-        "Show earnings within", ["30 days", "90 days", "6 months"], index=1,
+    horizon_label = st.segmented_control(
+        "Show earnings within",
+        ["30 days", "90 days", "6 months"],
+        default="90 days",
         key="earnings_horizon",
-    )
+    ) or "90 days"
     horizon_days = {"30 days": 30, "90 days": 90, "6 months": 182}[horizon_label]
     soon = upcoming(earnings, horizon_days)
     if soon.empty:
@@ -476,6 +520,7 @@ def _render_upcoming_earnings(ctx: AnalyticsContext) -> None:
         soon,
         {"EPS estimate": "{:,.2f}", "Revenue estimate": "₹{:,.0f}"},
         hide_index=True,
+        alt="Upcoming earnings dates for the selected holdings",
     )
 
 
@@ -486,11 +531,14 @@ def _render_price_forecast(ctx: AnalyticsContext) -> None:
         "Monte Carlo projection of the value-weighted portfolio from its recent daily "
         "returns — a scenario range, not a prediction."
     )
-    c1, c2 = st.columns(2)
-    horizon_label = c1.selectbox(
-        "Forecast horizon", ["1 month", "3 months", "6 months"], index=1, key="forecast_horizon"
-    )
-    simulations = c2.slider("Simulations", 200, 5000, 1000, step=200, key="forecast_sims")
+    with st.container(horizontal=True, vertical_alignment="bottom"):
+        horizon_label = st.segmented_control(
+            "Forecast horizon",
+            ["1 month", "3 months", "6 months"],
+            default="3 months",
+            key="forecast_horizon",
+        ) or "3 months"
+        simulations = st.slider("Simulations", 200, 5000, 1000, step=200, key="forecast_sims")
     steps = {"1 month": 21, "3 months": 63, "6 months": 126}[horizon_label]
 
     start_value = float(ctx.filtered_df["Current Value"].sum())
@@ -517,12 +565,23 @@ def _render_price_forecast(ctx: AnalyticsContext) -> None:
         yaxis_title="Portfolio value (₹)",
         legend_title="Percentile",
     )
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(
+        fig,
+        width="stretch",
+        alt="Monte Carlo forecast of the portfolio value: P5, P50 and P95 paths",
+    )
 
     final = projection.iloc[-1]
     theme.metric_row(
         (
-            ("Median", f"₹{final['P50']:,.0f}", f"{(final['P50'] / start_value - 1):+.1%}"),
+            (
+                "Median",
+                f"₹{final['P50']:,.0f}",
+                f"{(final['P50'] / start_value - 1):+.1%}",
+                # The sparkline traces the median path already charted above; the
+                # delta colour follows the gain/loss sign.
+                {"chart_data": projection["P50"], "delta_description": "vs today"},
+            ),
             ("Pessimistic (P5)", f"₹{final['P5']:,.0f}"),
             ("Optimistic (P95)", f"₹{final['P95']:,.0f}"),
         )
@@ -545,7 +604,7 @@ def render_tearsheet(ctx: AnalyticsContext) -> None:
 
     # quantstats mixes strings and numbers in one column; stringify so Arrow can
     # serialise it for st.dataframe.
-    table(report.astype(str))
+    table(report.astype(str), alt="Portfolio performance metrics (quantstats)")
 
 
 #: The analytics sections, keyed by the label the segmented control shows and
@@ -565,10 +624,29 @@ SECTIONS: Dict[str, Callable[[AnalyticsContext], None]] = {
 ANALYTICS_SECTIONS: Tuple[str, ...] = tuple(SECTIONS)
 
 
+@st.fragment
+def analytics_section(ctx: AnalyticsContext) -> None:
+    """The section switcher and the selected renderer, as one fragment.
+
+    Switching sections then reruns only this block instead of the whole page,
+    so the distribution charts and headline metrics above are not rebuilt for a
+    view they do not affect.
+    """
+    section = st.segmented_control(
+        "Analytics section",
+        ANALYTICS_SECTIONS,
+        default=ANALYTICS_SECTIONS[0],
+        key="analytics_section",
+        label_visibility="collapsed",
+    )
+    # The control can be cleared back to no selection.
+    SECTIONS[section or ANALYTICS_SECTIONS[0]](ctx)
+
+
 def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
     """Render correlation, beta and quantstats-based portfolio analytics."""
     st.markdown("---")
-    st.subheader("Portfolio Analytics")
+    st.subheader("Portfolio analytics")
     st.caption(
         f"Daily prices via Yahoo Finance · benchmark {BENCHMARK_NAME} · "
         "metrics computed on value-weighted daily returns."
@@ -578,7 +656,12 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
         st.info("Select at least one symbol to see analytics.")
         return
 
-    period = st.selectbox("Lookback period", ["6mo", "1y", "2y", "5y"], index=1)
+    period = st.segmented_control(
+        "Lookback period",
+        ["6mo", "1y", "2y", "5y"],
+        default="1y",
+        key="analytics_period",
+    ) or "1y"
 
     try:
         prices, benchmark = load_price_history(tuple(sorted(symbols)), period)
@@ -619,15 +702,7 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
         benchmark=benchmark,
     )
 
-    section = st.segmented_control(
-        "Analytics section",
-        ANALYTICS_SECTIONS,
-        default=ANALYTICS_SECTIONS[0],
-        key="analytics_section",
-        label_visibility="collapsed",
-    )
-    # The control can be cleared back to no selection.
-    SECTIONS[section or ANALYTICS_SECTIONS[0]](ctx)
+    analytics_section(ctx)
 
 
 def main():
@@ -636,10 +711,10 @@ def main():
         "Upload your Zerodha holdings for P&L, risk, red flags and a rebalancing plan.",
     )
     # How to Use Section
-    with st.expander("How to Use This"):
+    with st.expander("How to use this"):
         st.markdown(Path("HOW_TO_USE.md").read_text())
         # File Upload with Zerodha Instructions
-        st.markdown("### Upload Holdings")
+        st.markdown("### Upload holdings")
         st.markdown("""
             Upload your holdings from Zerodha:
             - [Family Portfolio](https://console.zerodha.com/portfolio/holdings/family)
@@ -677,7 +752,7 @@ def main():
     
     # Symbol Selection in Sidebar
     symbols = st.sidebar.multiselect(
-        "Select Symbols",
+        "Select symbols",
         options=sorted(df["Symbol"].unique()),
         default=df["Symbol"].unique()
     )
@@ -699,33 +774,46 @@ def main():
 
     theme.metric_row(
         (
-            ('Total Investment', f"₹{total_investment:,.0f}"),
-            ('Current Value', f"₹{current_value:,.0f}"),
-            ('Total P&L', f"₹{pnl:,.0f}", f"{pct_change:+.1f}%"),
+            ('Total investment', f"₹{total_investment:,.0f}"),
+            ('Current value', f"₹{current_value:,.0f}"),
+            (
+                'Total P&L',
+                f"₹{pnl:,.0f}",
+                # A flat move must not show a green up-arrow (see st.metric).
+                0 if round(pct_change, 1) == 0 else f"{pct_change:+.1f}%",
+                {"delta_description": "vs invested"},
+            ),
         )
     )
     
     # Display Holdings
-    with st.expander("Holdings Details"):
+    with st.expander("Holdings details"):
         st.dataframe(
-            filtered_df.style.format({
-                'Invested Value': '₹{:,.0f}',
-                'Current Value': '₹{:,.0f}',
-                'Total Quantity': '{:,.0f}'
-            }),
-            width="stretch",
-            hide_index=True
+            filtered_df,
+            hide_index=True,
+            alt="Holdings with quantities and invested and current value",
+            column_config={
+                "Total Quantity": st.column_config.NumberColumn(
+                    "Quantity", format="%,.0f"
+                ),
+                "Invested Value": st.column_config.NumberColumn(format="₹%,.0f"),
+                "Current Value": st.column_config.NumberColumn(format="₹%,.0f"),
+            },
         )
     
     # Display Charts
     c1, c2 = st.columns(2)
     symbol_fig, sector_fig = create_charts(filtered_df, df_with_sectors)
     
-    c1.subheader("Investment Distribution")
-    c1.plotly_chart(symbol_fig, width="stretch")
+    c1.subheader("Investment distribution")
+    c1.plotly_chart(
+        symbol_fig, width="stretch", alt="Invested value split by holding"
+    )
     
-    c2.subheader("Sector Distribution")
-    c2.plotly_chart(sector_fig, width="stretch")
+    c2.subheader("Sector distribution")
+    c2.plotly_chart(
+        sector_fig, width="stretch", alt="Invested value split by sector"
+    )
 
     # Analytics (correlation, beta, quantstats)
     render_analytics(filtered_df, list(symbols))

@@ -32,16 +32,23 @@ def main() -> None:
         st.session_state.pct = 0.0
     percent = c2.number_input("Percentage change (%)", step=0.5, key="pct")
 
-    col1, col2 = st.columns(2)
-    for column, percents in ((col1, STEPS[:3]), (col2, STEPS[3:])):
-        for preset in percents:
-            column.button(f"{preset:+g}%", on_click=set_percent, args=(preset,))
+    # Preset buttons move the percentage input; a horizontal container keeps the
+    # row responsive instead of a fixed two-column grid of buttons.
+    with st.container(horizontal=True):
+        for preset in STEPS:
+            st.button(f"{preset:+g}%", on_click=set_percent, args=(preset,))
 
     result = apply_change(value, percent)
+    change = result - value
     theme.metric_row(
         (
             ("New value", f"{result:,.2f}"),
-            ("Change", f"{result - value:+,.2f}"),
+            (
+                "Change",
+                f"{change:+,.2f}",
+                # A flat move must not show a green up-arrow (see st.metric).
+                0 if not percent else f"{percent:+.2f}%",
+            ),
         )
     )
 

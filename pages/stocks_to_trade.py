@@ -12,7 +12,12 @@ def main():
     )
 
     trading_parameters = ["Liquidity", "Low Spreads", "High Volatility"]
-    st.multiselect("Conditions | Parameters", trading_parameters, default=trading_parameters)
+    st.pills(
+        "Conditions | Parameters",
+        trading_parameters,
+        selection_mode="multi",
+        default=trading_parameters,
+    )
 
 
 if __name__ == "__main__":

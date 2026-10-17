@@ -141,8 +141,8 @@ def home() -> None:
                 theme.feature_card(**card)
 
     with st.expander("Data guide"):
-        st.dataframe(load_info(), width="stretch", hide_index=True)
-        st.write(Path("DATA.md").read_text())
+        st.dataframe(load_info(), hide_index=True, alt="Data source guide")
+        st.markdown(Path("DATA.md").read_text())
 
 
 # url_path is intentionally left unset on the file pages: Streamlit derives it

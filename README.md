@@ -255,6 +255,43 @@ runs the job nightly at 01:00 IST (and on demand). The universe is every
 watchlist in `indices/` plus the sample portfolio — currently ~220 symbols;
 edit `utils/snapshot.py::build_universe` to widen it.
 
+## Broker APIs and Account Aggregator
+
+The file import (broker exports and the depository CAS) is the default because it
+needs no registration, no token store and no trust beyond the browser tab. The
+live path is for a **self-hosted, authenticated deployment**, and it follows three
+rules:
+
+- **The client authorises; we never hold a password.** Each broker issues an
+  access token through its own OAuth (or API key + TOTP) flow, and only that token
+  is stored — server-side, never in the browser.
+- **Documented endpoints only, with a granted token.** No screen-scraping, and no
+  shared credentials.
+- **No guessed response shapes.** Field names differ per broker and drift, so
+  records are normalised through per-provider alias lists instead of one assumed
+  layout.
+
+What exists today is the provider registry and that normalisation, in
+[`utils/brokers/api.py`](utils/brokers/api.py): Zerodha Kite Connect and Upstox
+(OAuth), Dhan (access token) and Angel One SmartAPI (API key + TOTP), each with its
+holdings endpoint, auth header and response aliases. A normalised frame feeds the
+same resolver and valuation pipeline as a file, so ISIN-first matching applies
+either way. The providers whose field names have not been confirmed against a live
+account say so in their entry rather than pretending to work.
+
+It is deliberately **not wired into the UI yet**: it needs an authenticated host
+(`DEPLOY.md` covers the Docker image, but auth is yours to add) and a token store
+— the intended home being the same PocketBase backend that will hold the client
+book. The refresh is a scheduled job of the shape the nightly snapshot already
+uses. Until then the API layer is source-available building blocks, not a button
+that lies.
+
+The framework-correct long-term route for a book of clients is an **RBI Account
+Aggregator**: consent-based, recurring, multi-account, with the depositories as
+FIPs. It needs an FIU arrangement or an AA TSP (Setu, Finarkein, Onemoney,
+Perfios), so it is a later phase — worth a spike to confirm demat coverage with a
+TSP before committing.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

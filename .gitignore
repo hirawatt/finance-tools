@@ -4,6 +4,8 @@
 # Local-only client data and saved import mappings (privacy: never committed).
 /portfolios/
 /profiles/
+# Broker access tokens (credentials): owner-readable on disk only.
+/sessions/
 __pycache__
 .venv/
 .pytest_cache/

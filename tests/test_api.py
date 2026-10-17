@@ -12,7 +12,7 @@ from utils.brokers import api
 
 class TestRegistry:
     def test_covers_the_agreed_brokers(self):
-        assert set(api.PROVIDERS_BY_NAME) == {"Zerodha", "Upstox", "Dhan", "Angel One"}
+        assert set(api.PROVIDERS_BY_NAME) == {"Zerodha", "Dhan", "Angel One"}
 
     def test_every_provider_documents_itself(self):
         for provider in api.PROVIDERS:
@@ -30,16 +30,12 @@ class TestRequest:
         headers = api.PROVIDERS_BY_NAME["Zerodha"].headers("tok", api_key="key")
         assert headers["Authorization"] == "token key:tok"
 
-    def test_upstox_uses_a_bearer_token(self):
-        headers = api.PROVIDERS_BY_NAME["Upstox"].headers("tok")
-        assert headers["Authorization"] == "Bearer tok"
-
-    def test_dhan_uses_its_own_header(self):
+    def test_api_key_headers_travel_separately_where_the_broker_needs_them(self):
         headers = api.PROVIDERS_BY_NAME["Dhan"].headers("tok")
         assert headers["access-token"] == "tok"
 
     def test_a_call_without_a_token_is_refused(self):
-        provider = api.PROVIDERS_BY_NAME["Upstox"]
+        provider = api.PROVIDERS_BY_NAME["Dhan"]
         with pytest.raises(api.NotConfigured):
             api.build_request(provider, token="")
 
@@ -93,7 +89,7 @@ class TestNormalise:
         assert row["Average Price"] == 80
 
     def test_a_normalised_frame_feeds_the_same_pipeline_as_a_file(self):
-        provider = api.PROVIDERS_BY_NAME["Upstox"]
+        provider = api.PROVIDERS_BY_NAME["Zerodha"]
         frame = provider.normalise(
             [{"tradingsymbol": "WRONG", "isin": "INE455K01017", "quantity": 5, "average_price": 100, "last_price": 120}]
         )

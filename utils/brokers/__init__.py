@@ -135,6 +135,35 @@ def _finalise(
     )
 
 
+def import_records(
+    frame: pd.DataFrame,
+    *,
+    profile_name: str,
+    source: str = "",
+    master: Optional[holdings.SymbolMaster] = None,
+    aliases: Optional[Mapping[str, str]] = None,
+    client: str = "",
+    prices: Optional[Mapping[str, float]] = None,
+    warnings: Optional[List[str]] = None,
+) -> BrokerImport:
+    """Canonicalise an already-mapped frame — e.g. one fetched from a broker API.
+
+    Lets the live path land on exactly the same schema and the same resolver as a
+    file import, so ISIN-first matching and valuation are shared.
+    """
+    return _finalise(
+        frame.copy(),
+        profile_name=profile_name,
+        filename=source,
+        master=master,
+        aliases=aliases,
+        client=client,
+        prices=prices,
+        detected=True,
+        warnings=list(warnings or []),
+    )
+
+
 def _empty_import(profile_name: str, filename: str, warning: str) -> BrokerImport:
     """An empty import carrying the reason, so the page can explain it."""
     return BrokerImport(
@@ -253,6 +282,7 @@ __all__ = [
     "detect_profile",
     "guess_mapping",
     "import_holdings",
+    "import_records",
     "map_columns",
     "parse",
     "preview_table",

@@ -12,6 +12,8 @@ snapshots/
 # them into the published image.
 portfolios/
 profiles/
+# Broker access tokens are credentials: they live on the operator's disk only.
+sessions/
 
 # Secrets never belong in an image; pass SNAPSHOT_* env vars or mount the file.
 .streamlit/secrets.toml

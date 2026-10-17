@@ -121,15 +121,6 @@ PROVIDERS: Tuple[ApiProvider, ...] = (
         note="Kite Connect is a paid app; access tokens expire daily and the client logs in each day.",
     ),
     ApiProvider(
-        name="Upstox",
-        docs="https://upstox.com/developer/api-documentation/get-holdings/",
-        auth_kind="oauth",
-        holdings_url="https://api.upstox.com/v2/portfolio/long-term-holdings",
-        payload_paths=(("data",),),
-        record_aliases=_aliases(),
-        note="OAuth 2.0; the token expires daily.",
-    ),
-    ApiProvider(
         name="Dhan",
         docs="https://dhanhq.co/docs/v2/portfolio/",
         auth_kind="token",

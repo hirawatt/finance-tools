@@ -18,6 +18,10 @@ you commit.
   enter its password (usually PAN + date of birth). One statement covers every
   demat account and broker. A CAS has no purchase price, so invested value and
   P&L read flat — positions and weights are still exact.
+- **Zerodha, live** — when the deployment is set up with Kite Connect
+  credentials, the page shows *Connect Zerodha*: you sign in on Kite's own page
+  and holdings are pulled straight from the account, no file. The token is
+  stored on the machine, owner-readable only, and expires each morning.
 
 Symbols are matched by **ISIN** first (the same key at every broker), then by the
 trading symbol, then by company name. Rows that cannot be matched are listed —

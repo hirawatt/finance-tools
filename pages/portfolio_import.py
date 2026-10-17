@@ -16,6 +16,7 @@ import pandas as pd
 import streamlit as st
 
 from utils import brokers, holdings, portfolio_store, theme
+from utils.brokers import kite
 from utils.brokers import profiles as profile_library
 
 #: The fields the mapping editor exposes — the rest of the canonical schema is
@@ -54,6 +55,22 @@ PREVIEW_FORMATS = {
 def symbol_master() -> holdings.SymbolMaster:
     """The ISIN/symbol/name lookup, built once per process from committed files."""
     return holdings.SymbolMaster.from_paths()
+
+
+@st.cache_resource(show_spinner=False)
+def kite_config() -> kite.KiteConfig:
+    """The Kite app credentials from secrets/env; unconfigured by default."""
+    try:
+        secrets = st.secrets.to_dict()
+    except Exception:  # no secrets file, or running outside Streamlit
+        secrets = {}
+    return kite.KiteConfig.from_secrets(secrets)
+
+
+@st.cache_resource(show_spinner=False)
+def kite_tokens() -> kite.TokenStore:
+    """The owner-only access-token store on this machine."""
+    return kite.TokenStore()
 
 
 def _profile_options() -> Dict[str, brokers.BrokerProfile]:
@@ -157,6 +174,68 @@ def _import_statement(data: bytes, filename: str) -> None:
     _render_preview(result, client)
 
 
+def _render_kite() -> None:
+    """Zerodha Kite Connect: connect once, then import without a file.
+
+    Rendered only when the deployment carries Kite credentials, so a public
+    instance never offers a connection it cannot make.
+    """
+    config = kite_config()
+    if not config.configured:
+        return
+
+    theme.section_header(
+        "Zerodha Kite Connect",
+        "Connect once and pull holdings straight from the account — no file.",
+    )
+    store = kite_tokens()
+
+    token_param = st.query_params.get("request_token")
+    request_token = token_param[0] if isinstance(token_param, list) else token_param
+    if request_token:
+        try:
+            session = kite.exchange_request_token(config, request_token)
+        except Exception as error:
+            st.error(f"Could not finish the Kite login: {error}")
+        else:
+            store.save(session)
+            st.query_params.clear()
+            st.rerun()
+        return
+
+    session = store.load()
+    if session is None or not session.is_fresh():
+        st.link_button("Connect Zerodha", config.login_url(), icon=":material/open_in_new:")
+        st.caption(
+            "You sign in on Kite's own page and the dashboard never sees your "
+            "password. The access token is written to this machine, readable only "
+            "by its owner, and expires each morning."
+        )
+        return
+
+    st.success(
+        f"Connected as **{session.user_id or 'Zerodha account'}** · token valid "
+        f"until {session.expires_at():%d %b, %H:%M} IST."
+    )
+    client = st.text_input("Portfolio name", value="Zerodha account", key="kite_client")
+    if st.button("Import holdings from Zerodha", type="primary", key="kite-import"):
+        try:
+            frame = kite.fetch_holdings(session)
+        except Exception as error:  # an expired or revoked token, or a Kite outage
+            st.error(f"Kite refused the request: {error}")
+            return
+        result = brokers.import_records(
+            frame,
+            profile_name="Zerodha (Kite Connect)",
+            source=session.user_id or "Zerodha",
+            master=symbol_master(),
+            client=client,
+        )
+        for warning in result.warnings:
+            st.warning(warning)
+        _render_preview(result, client)
+
+
 def main() -> None:
     theme.page_header(
         "Import Portfolio",
@@ -167,6 +246,8 @@ def main() -> None:
         "Your file is read in memory for this session. It is not uploaded "
         "anywhere, and nothing is written to disk unless you press *Save locally*."
     )
+
+    _render_kite()
 
     uploaded = st.file_uploader(
         "Drop a holdings export",

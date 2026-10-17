@@ -186,6 +186,7 @@ instead of building it on the host.
 - [x] Import holdings from a broker — Zerodha, Groww, Dhan and Angel One are detected from the file's headers; any other sheet maps through the generic column editor
 - [x] ISIN-first symbol resolution, so the same stock imported from two brokers merges into one position
 - [x] Depository CAS (CDSL/NSDL) PDF import — one statement covers every broker and demat account at once
+- [x] Zerodha **Kite Connect**: connect once with the app's credentials and pull holdings live, with the access token stored owner-only and refreshed daily
 - [x] Integration with [quantstats](https://github.com/ranaroussi/quantstats)
 - [x] Advanced Portfolio Analytics
   - [x] Sector & Stock Weightage
@@ -271,26 +272,42 @@ rules:
   records are normalised through per-provider alias lists instead of one assumed
   layout.
 
-What exists today is the provider registry and that normalisation, in
-[`utils/brokers/api.py`](utils/brokers/api.py): Zerodha Kite Connect and Upstox
-(OAuth), Dhan (access token) and Angel One SmartAPI (API key + TOTP), each with its
-holdings endpoint, auth header and response aliases. A normalised frame feeds the
-same resolver and valuation pipeline as a file, so ISIN-first matching applies
-either way. The providers whose field names have not been confirmed against a live
-account say so in their entry rather than pretending to work.
+**Zerodha Kite Connect is implemented end to end**, in
+[`utils/brokers/kite.py`](utils/brokers/kite.py): the login URL, the checksum, the
+request-token → access-token exchange, and the holdings fetch. You log in on
+Kite's own page and the dashboard never sees your password; the access token is
+written owner-read-only (`0600`) under the git- and image-ignored `sessions/`, and
+Kite invalidates it every morning around 07:30 IST, so the flow is a daily one.
 
-It is deliberately **not wired into the UI yet**: it needs an authenticated host
-(`DEPLOY.md` covers the Docker image, but auth is yours to add) and a token store
-— the intended home being the same PocketBase backend that will hold the client
-book. The refresh is a scheduled job of the shape the nightly snapshot already
-uses. Until then the API layer is source-available building blocks, not a button
-that lies.
+It shows up on the **Import Portfolio** page only when the deployment carries
+credentials — a `[kite]` table in `.streamlit/secrets.toml` (or `KITE_API_KEY` /
+`KITE_API_SECRET` / `KITE_REDIRECT_URL` in the environment):
+
+```toml
+[kite]
+api_key = "..."
+api_secret = "..."
+redirect_url = "https://your-dashboard.example.com/portfolio_import"
+```
+
+Register the app at <https://developers.kite.trade/>, set its redirect URL to the
+Import page, and the public Streamlit instance stays untouched because it has no
+`[kite]` table. A fetched holdings frame feeds the same resolver and valuation
+pipeline as a file, so ISIN-first matching applies either way.
+
+The remaining providers — [Dhan](https://dhanhq.co/docs/v2/portfolio/) and
+[Angel One SmartAPI](https://smartapi.angelbroking.com/docs) — sit in the
+provider registry ([`utils/brokers/api.py`](utils/brokers/api.py)) with their
+endpoint, auth mode and alias normalisation, but are not wired to a flow yet. The
+ones whose field names have not been confirmed against a live account say so in
+their entry rather than pretending to work.
 
 The framework-correct long-term route for a book of clients is an **RBI Account
 Aggregator**: consent-based, recurring, multi-account, with the depositories as
 FIPs. It needs an FIU arrangement or an AA TSP (Setu, Finarkein, Onemoney,
 Perfios), so it is a later phase — worth a spike to confirm demat coverage with a
-TSP before committing.
+TSP before committing. Storing the tokens themselves belongs in the same
+PocketBase backend that will hold the client book.
 
 ## Contributing
 

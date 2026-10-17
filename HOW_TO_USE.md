@@ -24,6 +24,10 @@ is the only action that writes, and it writes to the git-ignored `portfolios/`
 directory on this machine. A PocketBase backend with auth is the intended home
 for a book of clients later.
 
+Once you have saved portfolios, the Co-Pilot's sidebar **Portfolio** picker
+switches between them — the sample, any saved client, and the file you imported
+this session — so a book of clients is one dropdown away.
+
 ```mermaid
 flowchart TD
     A(Co-Pilot) --> B(Analyze) & C(Optimize)

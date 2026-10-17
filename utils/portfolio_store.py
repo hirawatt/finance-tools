@@ -147,3 +147,12 @@ def clear_active() -> None:
 
     st.session_state.pop(ACTIVE_FRAME_KEY, None)
     st.session_state.pop(ACTIVE_LABEL_KEY, None)
+
+
+def book_options(saved: List[str], session_label: str = "") -> List[str]:
+    """The portfolios the picker offers: the sample, every saved client, and the
+    portfolio imported this session (when it is not already one of them)."""
+    options = ["Sample portfolio"] + list(saved)
+    if session_label and session_label not in options:
+        options.append(session_label)
+    return options

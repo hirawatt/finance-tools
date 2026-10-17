@@ -61,6 +61,24 @@ class TestLocalStore:
             portfolio_store.LocalStore(tmp_path).save("", frame())
 
 
+class TestBook:
+    def test_options_always_offer_the_sample(self):
+        assert portfolio_store.book_options([]) == ["Sample portfolio"]
+
+    def test_options_add_saved_clients_and_the_session_import(self):
+        assert portfolio_store.book_options(["Sharma"], "Groww export") == [
+            "Sample portfolio",
+            "Sharma",
+            "Groww export",
+        ]
+
+    def test_a_session_import_that_is_already_saved_is_not_duplicated(self):
+        assert portfolio_store.book_options(["Sharma"], "Sharma") == [
+            "Sample portfolio",
+            "Sharma",
+        ]
+
+
 class TestActivePortfolio:
     def test_set_and_get_with_a_stub_session(self, monkeypatch):
         fake = types.SimpleNamespace(session_state={})

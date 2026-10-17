@@ -687,6 +687,41 @@ def render_analytics(filtered_df: pd.DataFrame, symbols: list) -> None:
     analytics_section(ctx)
 
 
+def choose_portfolio() -> pd.DataFrame:
+    """The portfolio to analyse: a saved client, this session's import, or the sample.
+
+    The picker lives in the sidebar because choosing a client frames everything
+    on the page. The session's import is offered alongside the saved clients so a
+    freshly imported file is analysable without being saved first.
+    """
+    saved = portfolio_store.list_saved()
+    session = portfolio_store.get_active()
+    session_label = portfolio_store.active_label()
+    options = portfolio_store.book_options(saved, session_label)
+    default = session_label if session_label in options else "Sample portfolio"
+    choice = st.sidebar.selectbox(
+        "Portfolio", options, index=options.index(default), key="portfolio_choice"
+    )
+
+    if choice == "Sample portfolio":
+        st.info(
+            "Showing the **sample portfolio**. Bring your own from the "
+            "**Import Portfolio** page."
+        )
+        return load_sample_holdings()
+
+    if session is not None and choice == session_label:
+        frame = session
+    else:
+        frame = portfolio_store.load_saved(choice)
+    if frame is None:
+        st.warning(f"Could not read **{choice}**; showing the sample instead.")
+        return load_sample_holdings()
+
+    st.caption(f"Viewing **{choice}** — {len(frame)} holdings.")
+    return holdings.to_core(frame)
+
+
 def main():
     theme.page_header(
         "Co-Pilot · Portfolio Management",
@@ -696,21 +731,8 @@ def main():
     with st.expander("How to use this"):
         st.markdown(Path("HOW_TO_USE.md").read_text())
 
-    # The active portfolio is either one imported this session (or loaded from
-    # local disk) via the import page, or the committed sample.
-    active = portfolio_store.get_active()
-    if active is not None:
-        st.caption(
-            f"Viewing **{portfolio_store.active_label() or 'your portfolio'}** — "
-            f"{len(active)} holdings. Re-import from the Import page to replace it."
-        )
-        df = holdings.to_core(active)
-    else:
-        st.info(
-            "Showing the **sample portfolio**. Bring your own from the "
-            "**Import Portfolio** page."
-        )
-        df = load_sample_holdings()
+    # The client book: pick a saved client, the session's import, or the sample.
+    df = choose_portfolio()
 
     sectors_data = load_sectors()
 

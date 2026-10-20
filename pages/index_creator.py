@@ -44,7 +44,14 @@ def load_index_symbols(index_file: str) -> Optional[List[str]]:
     try:
         with open(path) as f:
             reader = csv.reader(f)
-            return next(reader)  # Get first row
+            # Long watchlists wrap onto further rows; read them all so an edit
+            # does not silently drop everything after the first line.
+            return [
+                symbol.strip().upper()
+                for row in reader
+                for symbol in row
+                if symbol.strip()
+            ]
     except (FileNotFoundError, StopIteration) as e:
         st.error(f"Error loading index file: {e}")
         return None

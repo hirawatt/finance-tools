@@ -96,13 +96,15 @@ def _seed(store, *, generated_at=None, failures=None, **frames):
 # Universe
 # --------------------------------------------------------------------------- #
 class TestUniverse:
-    def test_index_dir_reads_first_row_of_each_file(self, tmp_path):
-        (tmp_path / "a.csv").write_text("polycab,HFCL\n")
+    def test_index_dir_reads_every_row_of_each_file(self, tmp_path):
+        (tmp_path / "a.csv").write_text("polycab,HFCL\nBLUESTARCO\n")
         (tmp_path / "b.csv").write_text("hudco\n")
         (tmp_path / "empty.csv").write_text("")
         (tmp_path / "notes.txt").write_text("ignored")
 
-        assert snapshot.symbols_from_index_dir(tmp_path) == ["POLYCAB", "HFCL", "HUDCO"]
+        assert snapshot.symbols_from_index_dir(tmp_path) == [
+            "POLYCAB", "HFCL", "BLUESTARCO", "HUDCO",
+        ]
 
     def test_holdings_are_uppercased(self, tmp_path):
         path = _write_holdings(tmp_path / "holdings.xlsx", ["polycab", "HFCL"])
@@ -730,6 +732,30 @@ class TestFetchUniverseData:
         assert set(frames["prices"]["Close"]) == {1.0, 2.0, 3.0}
         assert set(frames["volumes"]["Volume"]) == {100.0, 200.0, 300.0}
         assert "prices" not in failures
+
+    def test_records_symbols_without_prices(self, monkeypatch):
+        index = _business_days(3)
+        prices = pd.DataFrame({"AAA": [1.0, 2.0, 3.0]}, index=index)
+        volumes = pd.DataFrame({"AAA": [100.0, 200.0, 300.0]}, index=index)
+
+        monkeypatch.setattr(
+            snapshot, "fetch_price_and_volume_history",
+            lambda symbols, period="1y", benchmark=None: (prices, None, volumes),
+        )
+        monkeypatch.setattr(snapshot, "fetch_company_data",
+                            lambda symbols, fields=None: pd.DataFrame(index=pd.Index([], name="Symbol")))
+        monkeypatch.setattr(snapshot, "fetch_default_risk", lambda symbols, caps=None: pd.DataFrame(
+            index=pd.Index([], name="Symbol")))
+        monkeypatch.setattr(snapshot, "fetch_earnings_calendar",
+                            lambda symbols, today=None: pd.DataFrame(columns=snapshot.EARNINGS_COLUMNS))
+        monkeypatch.setattr(snapshot, "fetch_surveillance",
+                            lambda: pd.DataFrame(columns=snapshot.SURVEILLANCE_COLUMNS))
+        monkeypatch.setattr(snapshot, "fetch_latest_fo_bhavcopy",
+                            lambda today=None: pd.DataFrame(columns=OPTION_COLUMNS))
+
+        _, failures = snapshot.fetch_universe_data(["AAA", "DEAD"])
+
+        assert failures["prices"] == ["no data from Yahoo: DEAD"]
 
 
 # --------------------------------------------------------------------------- #

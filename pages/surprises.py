@@ -8,7 +8,6 @@ being reachable at request time.
 
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 from typing import Callable, Dict, Tuple
 
@@ -25,6 +24,7 @@ from utils.options import (
 )
 from utils.pairs import candidate_pairs, rank_pairs
 from utils.volume import volume_anomalies
+from utils.watchlists import read_watchlists
 
 WATCHLIST_DIR = Path("indices")
 ALL_WATCHLISTS = "All watchlists"
@@ -59,14 +59,7 @@ def snapshot_store():
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_watchlists() -> Dict[str, Tuple[str, ...]]:
     """The curated watchlists in ``indices/``, as ordered symbol tuples."""
-    watchlists: Dict[str, Tuple[str, ...]] = {}
-    for path in sorted(WATCHLIST_DIR.glob("*.csv")):
-        with open(path, newline="") as handle:
-            row = next(csv.reader(handle), [])
-        watchlists[path.stem] = tuple(
-            symbol.strip().upper() for symbol in row if symbol.strip()
-        )
-    return watchlists
+    return read_watchlists(WATCHLIST_DIR)
 
 
 @st.cache_data(ttl=3600, show_spinner="Reading the nightly snapshot…")

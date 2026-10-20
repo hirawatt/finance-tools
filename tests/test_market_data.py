@@ -5,6 +5,7 @@ exercised as they run in the app.
 """
 
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -45,6 +46,44 @@ class TestToTicker(unittest.TestCase):
 
     def test_already_qualified_passthrough(self):
         self.assertEqual(to_ticker("TCS.NS"), "TCS.NS")
+
+    def test_renamed_ticker_is_resolved(self):
+        self.assertEqual(to_ticker("zomato"), "ETERNAL.NS")
+        self.assertEqual(to_ticker("BAJAJAUTO"), "BAJAJ-AUTO.NS")
+        self.assertEqual(to_ticker("MCDOWELL_N"), "UNITDSPR.NS")
+
+    def test_bse_only_ticker_keeps_its_exchange(self):
+        self.assertEqual(to_ticker("PANAENERG"), "PANAENERG.BO")
+        self.assertEqual(to_ticker("RASIELEC-X"), "RASIELEC.BO")
+
+
+class TestAliasedDownloads(unittest.TestCase):
+    """A renamed ticker comes back under the code the caller asked for."""
+
+    def _download(self, ticker, periods=3):
+        index = pd.date_range("2026-01-01", periods=periods, freq="B", name="Date")
+        data = pd.DataFrame(
+            {
+                ("Close", ticker): [10.0, 11.0, 12.0][:periods],
+                ("Volume", ticker): [100.0, 200.0, 300.0][:periods],
+            },
+            index=index,
+        )
+        data.columns = pd.MultiIndex.from_tuples(data.columns)
+        return data
+
+    def test_renamed_symbol_is_returned_under_the_requested_code(self):
+        with patch("utils.market_data._download", return_value=self._download("ETERNAL.NS")):
+            prices, benchmark = fetch_price_history(["ZOMATO"], benchmark=None)
+
+        self.assertEqual(list(prices.columns), ["ZOMATO"])
+        self.assertIsNone(benchmark)
+
+    def test_two_codes_for_one_ticker_both_appear(self):
+        with patch("utils.market_data._download", return_value=self._download("ORISSAMINE.NS")):
+            prices, _ = fetch_price_history(["ORISSAMINE6", "ORISSAMINE"], benchmark=None)
+
+        self.assertEqual(list(prices.columns), ["ORISSAMINE6", "ORISSAMINE"])
 
 
 class TestComputeReturns(unittest.TestCase):

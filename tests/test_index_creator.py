@@ -26,6 +26,17 @@ def test_load_index_symbols_valid():
             result = index_creator.load_index_symbols("test_index")
             assert result == ["AAPL", "MSFT", "GOOGL"]
 
+def test_load_index_symbols_reads_wrapped_rows():
+    with patch('index_creator.get_safe_path') as mock_get_safe_path:
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_get_safe_path.return_value = mock_path
+
+        m_open = mock_open(read_data="AAPL,MSFT\nGOOGL\n")
+        with patch('builtins.open', m_open):
+            result = index_creator.load_index_symbols("test_index")
+            assert result == ["AAPL", "MSFT", "GOOGL"]
+
 def test_save_functionality_in_main():
     # Reset mock_st methods
     mock_st.reset_mock()

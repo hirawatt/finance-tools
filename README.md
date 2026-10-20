@@ -273,8 +273,14 @@ nightly job, add the same values as repository secrets named `SNAPSHOT_BUCKET`,
 
 [`.github/workflows/nightly-snapshot.yml`](.github/workflows/nightly-snapshot.yml)
 runs the job nightly at 01:00 IST (and on demand). The universe is every
-watchlist in `indices/` plus the sample portfolio — currently ~220 symbols;
-edit `utils/snapshot.py::build_universe` to widen it.
+watchlist in `indices/` plus the sample portfolio — currently ~215 symbols;
+edit `utils/snapshot.py::build_universe` to widen it. Long watchlists may wrap
+onto several rows, and a watchlist that names another one (`iAll`, `tSummer`)
+expands to that list's constituents. Companies that later change their ticker
+are resolved through `utils/market_data.py::SYMBOL_ALIASES`, so an old spelling
+in a watchlist or a client export still fetches the current quote; symbols Yahoo
+has no data for are listed in the manifest's `failures` instead of vanishing
+from the snapshot.
 
 ## Broker APIs and Account Aggregator
 

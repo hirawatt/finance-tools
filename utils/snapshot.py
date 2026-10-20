@@ -31,7 +31,6 @@ nonsense.
 
 from __future__ import annotations
 
-import csv
 import io
 import json
 import os
@@ -54,6 +53,7 @@ from utils.market_data import (
 )
 from utils.options import OPTION_COLUMNS, fetch_latest_fo_bhavcopy
 from utils.surveillance import SURVEILLANCE_COLUMNS, fetch_surveillance
+from utils.watchlists import read_watchlists
 
 # Datasets written by the job, one Parquet blob each.
 DATASETS = (
@@ -407,14 +407,16 @@ def _clean_symbols(symbols: Iterable[str]) -> List[str]:
 
 
 def symbols_from_index_dir(directory: Path | str) -> List[str]:
-    """The first row of every ``indices/*.csv`` file — the curated watchlists."""
-    directory = Path(directory)
-    symbols: List[str] = []
-    for path in sorted(directory.glob("*.csv")):
-        with open(path, newline="") as handle:
-            row = next(csv.reader(handle), [])
-        symbols += [symbol.strip().upper() for symbol in row if symbol.strip()]
-    return symbols
+    """Every symbol in the curated watchlists under ``indices/``.
+
+    Reads all rows of each watchlist (long lists wrap), and expands a token
+    that names another watchlist instead of treating it as a ticker.
+    """
+    return [
+        symbol
+        for symbols in read_watchlists(directory).values()
+        for symbol in symbols
+    ]
 
 
 def symbols_from_holdings(path: Path | str) -> List[str]:
@@ -468,7 +470,9 @@ def fetch_universe_data(
 
     Returns ``(frames, failures)``. A dataset that raises is omitted from
     ``frames`` and recorded in ``failures``, so one flaky provider does not
-    cost the whole night's snapshot.
+    cost the whole night's snapshot. The same map also names the symbols Yahoo
+    returned no prices for, so an incomplete universe is visible in the
+    manifest instead of only in the provider's log.
     """
     frames: Dict[str, pd.DataFrame] = {}
     failures: Dict[str, List[str]] = {}
@@ -496,11 +500,17 @@ def fetch_universe_data(
 
     def price_and_volume() -> None:
         """One Yahoo pass fills both the price and the volume datasets."""
+        clean = [str(symbol).strip() for symbol in symbols if str(symbol).strip()]
         prices, benchmark_series, volumes = fetch_price_and_volume_history(
-            symbols, period=period, benchmark=benchmark
+            clean, period=period, benchmark=benchmark
         )
         frames["prices"] = prices_to_frame(prices, benchmark_series)
         frames["volumes"] = volumes_to_frame(volumes)
+        # `_tidy` drops tickers Yahoo has no data for, so the manifest would
+        # otherwise claim the full universe with nothing recording the gap.
+        uncovered = [symbol for symbol in dict.fromkeys(clean) if symbol not in prices.columns]
+        if uncovered:
+            failures["prices"] = [f"no data from Yahoo: {', '.join(uncovered)}"]
 
     try:
         price_and_volume()

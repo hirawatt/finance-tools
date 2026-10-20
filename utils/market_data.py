@@ -25,6 +25,29 @@ NSE_SUFFIX = ".NS"
 DEFAULT_BENCHMARK = "^NSEI"  # NIFTY 50
 BENCHMARK_NAME = "NIFTY 50"
 
+# Companies that changed their NSE ticker: the curated watchlists and older
+# holdings exports still use the left-hand code, while Yahoo only knows the
+# right-hand one. Frames are still keyed by the requested code (see `_tidy`),
+# so the rest of the app keeps the spelling it already stores. A ticker with an
+# exchange suffix is used as-is: a few names (e.g. Panasonic Energy) are only
+# quoted on the BSE.
+SYMBOL_ALIASES = {
+    "ADANITRANS": "ADANIENSOL",
+    "AMARAJABAT": "ARE&M",
+    "BAJAJAUTO": "BAJAJ-AUTO",
+    "GMRINFRA": "GMRAIRPORT",
+    "IIFLSEC": "IIFLCAPS",
+    "IIFLWAM": "360ONE",
+    "MAXVIL": "MAXESTATES",
+    "MCDOWELL-N": "UNITDSPR",
+    "MCDOWELL_N": "UNITDSPR",
+    "MICEL-T": "MICEL",
+    "ORISSAMINE6": "ORISSAMINE",
+    "PANAENERG": "PANAENERG.BO",
+    "RASIELEC-X": "RASIELEC.BO",
+    "ZOMATO": "ETERNAL",
+}
+
 # Minimum overlapping daily observations before we trust a beta/statistic.
 MIN_OBSERVATIONS = 20
 
@@ -69,12 +92,14 @@ def to_ticker(symbol: str) -> str:
     """Map an NSE symbol to its Yahoo Finance ticker.
 
     Symbols that are already explicit (an index such as ``^NSEI`` or a fully
-    qualified ticker containing a dot) are passed through untouched.
+    qualified ticker containing a dot) are passed through untouched. Tickers a
+    company has since changed are resolved through :data:`SYMBOL_ALIASES`.
     """
     symbol = str(symbol).strip().upper()
     if not symbol or symbol.startswith("^") or "." in symbol:
         return symbol
-    return f"{symbol}{NSE_SUFFIX}"
+    symbol = SYMBOL_ALIASES.get(symbol, symbol)
+    return symbol if "." in symbol else f"{symbol}{NSE_SUFFIX}"
 
 
 def _extract_field(
@@ -130,9 +155,19 @@ def _tidy(extracted: pd.DataFrame, tickers: Sequence[str], clean: Sequence[str])
     """Keep symbols that returned data, mapped back from tickers to NSE codes."""
     if extracted is None or extracted.empty:
         return pd.DataFrame()
-    resolved = {ticker: symbol for ticker, symbol in zip(tickers, clean)}
-    present = [ticker for ticker in tickers if ticker in extracted.columns]
-    wide = extracted[present].rename(columns=resolved)
+
+    # One ticker can serve more than one requested code (an alias, or a broker
+    # suffix variant), so build the frame column by column rather than assuming
+    # a one-to-one rename.
+    columns = [
+        extracted[ticker].rename(symbol)
+        for ticker, symbol in zip(tickers, clean)
+        if ticker in extracted.columns
+    ]
+    if not columns:
+        return pd.DataFrame()
+
+    wide = pd.concat(columns, axis=1)
     return wide.loc[:, wide.notna().any(axis="index")]
 
 
@@ -151,7 +186,7 @@ def fetch_price_history(
     # De-duplicate while preserving order.
     clean = [s for s in dict.fromkeys(str(s).strip() for s in symbols) if s]
     tickers = [to_ticker(s) for s in clean]
-    downloads = tickers + ([benchmark] if benchmark else [])
+    downloads = list(dict.fromkeys(tickers + ([benchmark] if benchmark else [])))
 
     if not downloads:
         return pd.DataFrame(), None
@@ -184,7 +219,7 @@ def fetch_price_and_volume_history(
     """
     clean = [s for s in dict.fromkeys(str(s).strip() for s in symbols) if s]
     tickers = [to_ticker(s) for s in clean]
-    downloads = tickers + ([benchmark] if benchmark else [])
+    downloads = list(dict.fromkeys(tickers + ([benchmark] if benchmark else [])))
 
     if not downloads:
         return pd.DataFrame(), None, pd.DataFrame()

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple
 
 from utils import brokers, charts, holdings, portfolio_store, snapshot, theme
+from utils.snapshot_store import snapshot_store
 from utils.theme import printf_format
 from utils.rebalancing import (
     STRATEGIES,
@@ -57,21 +58,6 @@ def load_sample_holdings() -> pd.DataFrame:
     """
     data = Path('./data/holdings-sample.xlsx').read_bytes()
     return brokers.import_holdings(data, 'holdings-sample.xlsx').core
-
-
-@st.cache_resource(show_spinner=False)
-def snapshot_store():
-    """Object storage holding the nightly market-data snapshot.
-
-    Configured from the ``[snapshot]`` secrets table (or ``SNAPSHOT_*`` env
-    vars), and degrading to a local directory when nothing is configured, in
-    which case every loader simply falls back to live fetches.
-    """
-    try:
-        secrets = st.secrets.to_dict()
-    except Exception:  # no secrets file, or running outside Streamlit
-        secrets = {}
-    return snapshot.SnapshotConfig.from_secrets(secrets).store()
 
 
 @st.cache_data(ttl=3600, max_entries=32, show_spinner="Fetching market data…")

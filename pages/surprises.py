@@ -15,6 +15,7 @@ import pandas as pd
 import streamlit as st
 
 from utils import charts, snapshot, theme
+from utils.snapshot_store import snapshot_store
 from utils.options import (
     INDEX_SYMBOLS,
     implied_forward,
@@ -44,16 +45,6 @@ NO_SNAPSHOT = (
     "No snapshot covers this yet. The nightly job writes it after the market "
     "closes; this page never fetches live."
 )
-
-
-@st.cache_resource(show_spinner=False)
-def snapshot_store():
-    """Object storage holding the nightly snapshot (read-only on this page)."""
-    try:
-        secrets = st.secrets.to_dict()
-    except Exception:  # no secrets file, or running outside Streamlit
-        secrets = {}
-    return snapshot.SnapshotConfig.from_secrets(secrets).store()
 
 
 @st.cache_data(show_spinner=False)

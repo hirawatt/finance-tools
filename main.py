@@ -17,6 +17,9 @@ import streamlit as st
 
 from utils import theme
 
+#: Registered pages that frame the app rather than being a tool of their own.
+FRAME_PAGES = 2  # Home and About
+
 st.set_page_config(
     'The Trading Dashboard by Hirawat',
     # The committed SVG favicon, not an emoji, so the tab matches the brand.
@@ -99,7 +102,7 @@ def home() -> None:
             ("Watchlists & portfolios", stats["watchlists"]),
             ("Companies tracked", f"{stats['companies']:,}"),
             ("Sectors covered", stats["sectors"]),
-            ("Tools & views", len(PAGES) - 2),  # every page but Home and About
+            ("Tools & views", len(PAGES) - FRAME_PAGES),
         )
     )
 

@@ -512,6 +512,9 @@ hr { border-color: var(--td-line); margin: 1.15rem 0; }
 }
 .td-footer a { color: var(--td-muted); font-weight: 600; }
 .td-footer a:hover { color: var(--td-accent); }
+
+/* ---- Credits ------------------------------------------------------- */
+.td-credits { text-align: center; }
 """
 
 
@@ -744,11 +747,14 @@ def feature_card(
     )
 
 
+@st.cache_data(show_spinner=False, max_entries=32)
 def _logo_data_uri(relative_path: str) -> Optional[str]:
     """Inline a committed logo as a data URI, or ``None`` when it is absent.
 
     Data URIs keep the card markup self-contained: nothing depends on Streamlit
     serving a static directory, and the committed files stay the source of truth.
+    Cached because the grid is re-rendered on every rerun and re-encoding the
+    committed bytes each time buys nothing.
     """
     path = _ROOT / relative_path
     if not path.is_file():

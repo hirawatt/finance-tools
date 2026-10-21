@@ -24,7 +24,7 @@ from utils.options import (
 )
 from utils.pairs import candidate_pairs, rank_pairs
 from utils.volume import volume_anomalies
-from utils.watchlists import read_watchlists
+from utils.watchlists import read_watchlists, watchlist_stamp
 
 WATCHLIST_DIR = Path("indices")
 ALL_WATCHLISTS = "All watchlists"
@@ -56,10 +56,20 @@ def snapshot_store():
     return snapshot.SnapshotConfig.from_secrets(secrets).store()
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_watchlists() -> Dict[str, Tuple[str, ...]]:
-    """The curated watchlists in ``indices/``, as ordered symbol tuples."""
+@st.cache_data(show_spinner=False)
+def _watchlists(stamp: float) -> Dict[str, Tuple[str, ...]]:
+    """The curated watchlists in ``indices/``, as ordered symbol tuples.
+
+    ``stamp`` is the directory's latest mtime, so an edit made on the Index
+    Creator page invalidates this entry rather than leaving the screens reading
+    the pre-edit universe for an hour.
+    """
     return read_watchlists(WATCHLIST_DIR)
+
+
+def load_watchlists() -> Dict[str, Tuple[str, ...]]:
+    """The watchlists as they are on disk right now."""
+    return _watchlists(watchlist_stamp(WATCHLIST_DIR))
 
 
 @st.cache_data(ttl=3600, show_spinner="Reading the nightly snapshot…")

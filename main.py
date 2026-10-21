@@ -46,15 +46,30 @@ def load_info() -> pd.DataFrame:
 
 
 @st.cache_data
-def dashboard_stats() -> dict[str, int]:
-    """Headline counts for the home page, read from the committed data files."""
-    sectors = pd.read_csv("./data/stock-sector.csv", usecols=["Sector"])["Sector"].nunique()
+def company_count() -> int:
+    """Rows in the committed company master (the header line excluded)."""
     with open("./data/all-companies-list.csv", encoding="utf-8") as handle:
-        companies = max(sum(1 for _ in handle) - 1, 0)  # minus the header row
+        return max(sum(1 for _ in handle) - 1, 0)
+
+
+@st.cache_data
+def sector_count() -> int:
+    """Distinct sectors in the committed sector map."""
+    sectors = pd.read_csv("./data/stock-sector.csv", usecols=["Sector"])["Sector"]
+    return int(sectors.nunique())
+
+
+def dashboard_stats() -> dict[str, int]:
+    """Headline counts for the home page.
+
+    Only the committed data files are cached: the watchlist count is a live
+    directory listing, so a list added or removed under ``indices/`` shows up
+    without a restart.
+    """
     return {
         "watchlists": len(list(Path("indices").glob("*.csv"))),
-        "companies": companies,
-        "sectors": int(sectors),
+        "companies": company_count(),
+        "sectors": sector_count(),
     }
 
 

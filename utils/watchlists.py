@@ -29,6 +29,19 @@ def _read_symbols(path: Path) -> List[str]:
         ]
 
 
+def watchlist_stamp(directory: Path | str) -> float:
+    """The latest modification time among the ``*.csv`` files in ``directory``.
+
+    Cached readers take this as an argument: editing a watchlist changes the
+    stamp, which changes their cache key, so the next rerun re-reads the lists
+    instead of serving the pre-edit universe until a TTL expires.
+    """
+    directory = Path(directory)
+    return max(
+        (path.stat().st_mtime for path in directory.glob("*.csv")), default=0.0
+    )
+
+
 def read_watchlists(directory: Path | str) -> Dict[str, Watchlist]:
     """Resolve every ``*.csv`` in ``directory`` to its symbol tuple.
 

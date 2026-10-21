@@ -16,9 +16,13 @@ from utils import theme
 from utils.custom_indices import get_safe_path, custom_indices as get_indices
 
 
-@st.cache_data
 def get_custom_indices() -> List[str]:
-    """Get list of custom indices"""
+    """The watchlists in ``indices/``, read live so a new file appears at once.
+
+    A directory listing costs microseconds, so caching this only ever served a
+    stale list — a watchlist added outside the app stayed invisible until the
+    process restarted.
+    """
     return get_indices()
 
 

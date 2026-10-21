@@ -37,12 +37,11 @@ def main() -> None:
                 selection_mode="multi",
                 default=["Small Cap"],
             )
-            submitted = st.form_submit_button("Submit")
-        if submitted:
-            st.caption(
-                f"{no_of_stocks} stocks · {', '.join(universe or []) or 'all caps'} · "
-                f"min. investment ₹{min_investment:,.0f}"
-            )
+            st.form_submit_button("Submit")
+        st.caption(
+            f"{no_of_stocks} stocks · {', '.join(universe or []) or 'all caps'} · "
+            f"min. investment ₹{min_investment:,.0f}"
+        )
 
     avg_investment_value = round(min_investment / no_of_stocks, 2)
     max_stock_price = round(max_portfolio_allocation * min_investment / 100, 2)

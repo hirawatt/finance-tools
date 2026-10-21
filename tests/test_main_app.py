@@ -31,3 +31,16 @@ def test_main_app_elements():
     markdown = " ".join(element.value for element in at.markdown)
     assert "India Life Expectancy" in markdown
     assert "[macrotrends.net](https://www.macrotrends.net/countries/IND/india/life-expectancy)" in markdown
+
+
+def test_idea_generation_says_it_is_not_built_yet():
+    """A page whose controls do nothing must say so, not offer inert filters."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+    at.switch_page("pages/stocks_to_trade.py")
+    at.run()
+    assert not at.exception, f"Page raised an exception: {at.exception}"
+
+    assert any("not wired up yet" in info.value for info in at.info)
+    labels = {link.label for link in at.page_link}
+    assert {"Due Diligence", "Stock Search"} <= labels

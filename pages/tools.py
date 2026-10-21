@@ -28,8 +28,7 @@ def main() -> None:
 
     c1, c2 = st.columns(2)
     value = c1.number_input("Value", value=100.0, step=1.0)
-    if "pct" not in st.session_state:
-        st.session_state.pct = 0.0
+    st.session_state.setdefault("pct", 0.0)
     percent = c2.number_input("Percentage change (%)", step=0.5, key="pct")
 
     # Preset buttons move the percentage input; a horizontal container keeps the

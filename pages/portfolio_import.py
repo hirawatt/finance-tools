@@ -184,14 +184,19 @@ def _render_saved() -> None:
     for name in saved:
         columns = st.columns([4, 1, 1])
         columns[0].markdown(f"**{name}**")
-        if columns[1].button("Use", key=f"use-{name}"):
+        if columns[1].button("Use", key=f"use-{name}", icon=":material/check:"):
             frame = portfolio_store.load_saved(name)
             if frame is not None:
                 portfolio_store.set_active(holdings.to_core(frame), label=name)
-                st.success(f"**{name}** is now the active portfolio.")
+                # A toast outlives the rerun; an alert rendered now would not.
+                st.toast(
+                    f"{name} is now the active portfolio.",
+                    icon=":material/check_circle:",
+                )
                 st.rerun()
-        if columns[2].button("Delete", key=f"delete-{name}"):
+        if columns[2].button("Delete", key=f"delete-{name}", icon=":material/delete:"):
             portfolio_store.delete_saved(name)
+            st.toast(f"Deleted {name}.", icon=":material/delete:")
             st.rerun()
 
 

@@ -76,10 +76,14 @@ def save_index_symbols(index_file: str, symbols: List[str]) -> None:
         with open(path, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(symbols)
-        st.success("Changes saved successfully!")
-        st.rerun()
     except Exception as e:
         st.error(f"Error saving changes: {e}")
+        return
+
+    # A toast survives the rerun that shows the fresh list; st.success would be
+    # discarded with the run that rendered it.
+    st.toast(f"Saved {len(symbols)} symbols.", icon=":material/check_circle:")
+    st.rerun()
 
 
 def create_tv_index_string(symbols: List[str]) -> str:
@@ -113,23 +117,18 @@ def download_watchlist(index_file: str) -> None:
         return
 
     try:
-        with open(path, "rb") as f:
-            st.download_button(
-                label="Download current watchlist",
-                data=f,
-                file_name=f"{index_file}.csv",
-                mime='text/csv',
-                icon=":material/download:",
-            )
+        data = path.read_bytes()
     except FileNotFoundError:
         st.error("Watchlist file not found")
+        return
 
-
-def instruments() -> pd.DataFrame:
-    """The instruments dump, cached in session state as a readiness check."""
-    if "instruments_df" not in st.session_state:
-        st.session_state.instruments_df = load_instruments()
-    return st.session_state.instruments_df
+    st.download_button(
+        label="Download current watchlist",
+        data=data,
+        file_name=f"{index_file}.csv",
+        mime="text/csv",
+        icon=":material/download:",
+    )
 
 
 def edit_watchlist(index_file: str) -> Optional[List[str]]:
@@ -168,7 +167,7 @@ def main():
         "Build, edit and export the watchlists the other desks read.",
     )
 
-    instruments_df = instruments()
+    instruments_df = load_instruments()
     if instruments_df.empty:
         st.stop()
 

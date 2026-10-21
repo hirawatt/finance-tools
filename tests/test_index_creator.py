@@ -83,6 +83,7 @@ def test_save_functionality_in_main():
             # Verify file was written
             m_open.assert_any_call(mock_path, "w", newline="")
 
-            # Verify success message and rerun were called
-            mock_st.success.assert_any_call("Changes saved successfully!")
+            # Verify the toast and rerun were called: the message has to outlive
+            # the rerun that shows the fresh list.
+            mock_st.toast.assert_called_once()
             mock_st.rerun.assert_called_once()

@@ -10,7 +10,9 @@ anywhere, and nothing reaches disk unless the user presses *Save locally*
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+import hashlib
+from dataclasses import replace
+from typing import Dict, Optional, Tuple
 
 import pandas as pd
 import streamlit as st
@@ -79,6 +81,48 @@ def _profile_options() -> Dict[str, brokers.BrokerProfile]:
     for name, mapping in profile_library.saved_profiles().items():
         options[name] = profile_library.profile_from_mapping(name, mapping)
     return options
+
+
+#: Session key holding the last CAS statement that opened, with the digest of
+#: the bytes it was read from.
+CAS_READ = "import-cas-read"
+
+
+@st.cache_data(show_spinner=False, max_entries=16)
+def _detect_upload(data: bytes, filename: str) -> Optional[brokers.BrokerProfile]:
+    """The broker whose signature the upload carries, parsed once per file."""
+    return brokers.detect_profile(data, filename)
+
+
+@st.cache_data(show_spinner=False, max_entries=16)
+def _preview_upload(data: bytes, filename: str, profile_name: str) -> pd.DataFrame:
+    """The raw table for the mapping screen, parsed once per file and format."""
+    return brokers.preview_table(data, filename, _profile_options().get(profile_name))
+
+
+@st.cache_data(show_spinner="Reading the file…", max_entries=8)
+def _parse_upload(
+    data: bytes,
+    filename: str,
+    profile_name: str,
+    mapping: Optional[Tuple[Tuple[str, str], ...]] = None,
+) -> brokers.BrokerImport:
+    """Parse and resolve one upload, cached per file, format and column mapping.
+
+    The portfolio name is deliberately not part of the key: it is applied
+    afterwards by :func:`_with_client`, so typing it does not re-read the file.
+    """
+    profile = _profile_options().get(profile_name) or brokers.GENERIC
+    if mapping is not None:
+        profile = profile_library.profile_from_mapping(profile_name, dict(mapping))
+    return brokers.import_holdings(data, filename, profile=profile, master=symbol_master())
+
+
+def _with_client(result: brokers.BrokerImport, client: str) -> brokers.BrokerImport:
+    """The same import, stamped with the portfolio name the user typed."""
+    if not client:
+        return result
+    return replace(result, holdings=result.holdings.assign(Client=client))
 
 
 def _number_column(pattern: str) -> "st.column_config.NumberColumn":
@@ -151,8 +195,22 @@ def _render_saved() -> None:
             st.rerun()
 
 
+def _render_result(result: brokers.BrokerImport, client: str) -> None:
+    """Warnings, then the confirm beat — the tail both import paths share."""
+    named = _with_client(result, client)
+    for warning in named.warnings:
+        st.warning(warning)
+    _render_preview(named, client)
+
+
 def _import_statement(data: bytes, filename: str) -> None:
-    """A depository CAS PDF — the client book from a single file."""
+    """A depository CAS PDF — the client book from a single file.
+
+    Decrypting and parsing a statement costs a pass over every page, so it runs
+    once, when *Read statement* is pressed, and the result is kept for the
+    session: re-reading on each rerun would re-parse the PDF on every keystroke
+    in the password box.
+    """
     st.info(
         "Reading a depository **CAS** statement: one PDF covers every broker and "
         "demat account at once."
@@ -166,12 +224,29 @@ def _import_statement(data: bytes, filename: str) -> None:
         )
         client = st.text_input("Portfolio name", value="My portfolio", key="import_client")
 
-    result = brokers.import_holdings(
-        data, filename, master=symbol_master(), client=client, password=password
+    digest = (filename, hashlib.sha256(data).hexdigest())
+    read = st.session_state.get(CAS_READ)
+    if read is not None and read["file"] == digest:
+        _render_result(read["result"], client)
+        return
+
+    if not st.button("Read statement", type="primary", icon=":material/lock_open:"):
+        st.caption(
+            "Enter the password the depository set, then read the statement to "
+            "preview its holdings."
+        )
+        return
+
+    parsed = brokers.import_holdings(
+        data, filename, master=symbol_master(), password=password
     )
-    for warning in result.warnings:
-        st.warning(warning)
-    _render_preview(result, client)
+    if parsed.holdings.empty:
+        # A wrong password must leave the button in place for another attempt.
+        _render_result(parsed, client)
+        return
+
+    st.session_state[CAS_READ] = {"file": digest, "result": parsed}
+    _render_result(parsed, client)
 
 
 def _render_kite() -> None:
@@ -231,9 +306,7 @@ def _render_kite() -> None:
             master=symbol_master(),
             client=client,
         )
-        for warning in result.warnings:
-            st.warning(warning)
-        _render_preview(result, client)
+        _render_result(result, client)
 
 
 def main() -> None:
@@ -269,7 +342,7 @@ def main() -> None:
         _import_statement(data, filename)
         return
 
-    detected = brokers.detect_profile(data, filename)
+    detected = _detect_upload(data, filename)
     options = _profile_options()
 
     default_name = detected.name if detected and detected.name in options else "Generic"
@@ -291,13 +364,13 @@ def main() -> None:
         )
 
     profile = options[chosen_name]
-    table = brokers.preview_table(data, filename, profile)
+    table = _preview_upload(data, filename, chosen_name)
 
+    mapping: Optional[Dict[str, str]] = None
     if chosen_name == "Generic" or profile.signature == ():
         mapping = _mapping_editor(
             table, brokers.guess_mapping(table, profile), key="import-map"
         )
-        profile = profile_library.profile_from_mapping(chosen_name, mapping)
         if st.button("Save this mapping for next time", key="import-save-map"):
             saved = profile_library.save_profile(client or "My broker", mapping)
             if saved is not None:
@@ -306,21 +379,17 @@ def main() -> None:
                 st.warning("Could not save the mapping — map a symbol or quantity column first.")
 
     try:
-        result = brokers.import_holdings(
+        result = _parse_upload(
             data,
             filename,
-            profile=profile,
-            master=symbol_master(),
-            client=client,
+            chosen_name,
+            None if mapping is None else tuple(sorted(mapping.items())),
         )
     except Exception as error:  # a malformed file should not break the page
         st.error(f"Could not read the file: {error}")
         return
 
-    for warning in result.warnings:
-        st.warning(warning)
-
-    _render_preview(result, client)
+    _render_result(result, client)
 
 
 def _render_preview(result: brokers.BrokerImport, client: str) -> None:

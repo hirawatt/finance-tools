@@ -15,7 +15,6 @@ import pandas as pd
 import streamlit as st
 
 from utils import charts, snapshot, theme
-from utils.snapshot_store import snapshot_store
 from utils.options import (
     INDEX_SYMBOLS,
     implied_forward,
@@ -24,6 +23,7 @@ from utils.options import (
     put_call_ratio,
 )
 from utils.pairs import candidate_pairs, rank_pairs
+from utils.snapshot_store import snapshot_store
 from utils.volume import volume_anomalies
 from utils.watchlists import read_watchlists, watchlist_stamp
 

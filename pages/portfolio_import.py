@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import replace
+from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 import pandas as pd
@@ -83,9 +84,10 @@ def _profile_options() -> Dict[str, brokers.BrokerProfile]:
     return options
 
 
-#: Session key holding the last CAS statement that opened, with the digest of
-#: the bytes it was read from.
-CAS_READ = "import-cas-read"
+#: Session key holding the statement that last opened, with the digest of the
+#: bytes it was read from. Deliberately not the read button's key, which lives in
+#: session state as a bool.
+CAS_READ = "import-cas-statement"
 
 
 @st.cache_data(show_spinner=False, max_entries=16)
@@ -235,7 +237,12 @@ def _import_statement(data: bytes, filename: str) -> None:
         _render_result(read["result"], client)
         return
 
-    if not st.button("Read statement", type="primary", icon=":material/lock_open:"):
+    if not st.button(
+        "Read statement",
+        type="primary",
+        icon=":material/lock_open:",
+        key="import-cas-read",
+    ):
         st.caption(
             "Enter the password the depository set, then read the statement to "
             "preview its holdings."
@@ -474,7 +481,10 @@ def _render_preview(result: brokers.BrokerImport, client: str) -> None:
             except Exception as error:  # e.g. an unnamed portfolio
                 st.error(f"Could not save: {error}")
 
-    st.page_link("pages/portfolio_analysis.py", label="Go to the Co-Pilot")
+    st.page_link(
+        Path(__file__).with_name("portfolio_analysis.py"),
+        label="Go to the Co-Pilot",
+    )
 
 
 if __name__ == "__main__":

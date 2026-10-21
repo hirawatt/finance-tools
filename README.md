@@ -72,7 +72,7 @@ so the sidebar's titles, icons and order all live in one place.
 | Home | `main.py` | Branded landing page: hero, headline stats, workflow strip, tool cards and the data guide |
 | Import Portfolio | `pages/portfolio_import.py` | Bring holdings from a broker, resolve symbols, keep them session-only or save locally |
 | Co-Pilot | `pages/portfolio_analysis.py` | Portfolio analytics, risk and rebalancing |
-| Idea Generation | `pages/stocks_to_trade.py` | Candidate trade ideas |
+| Idea Generation | `pages/stocks_to_trade.py` | Placeholder while the screen is being built; it says so and links to the desks that cover the ground |
 | Due Diligence | `pages/surprises.py` | Surprise and unusual-activity checks |
 | Index Creator | `pages/index_creator.py` | Build, edit and export watchlists |
 | Stock Search | `pages/stock_search.py` | Small-cap stock screener |

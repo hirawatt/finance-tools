@@ -64,6 +64,20 @@ def test_screens_produce_results():
     assert len(app.dataframe) >= 1, "the stretched AAA/BBB pair should be flagged"
 
 
+def test_every_table_is_named_for_screen_readers():
+    """``st.dataframe`` needs an ``alt``; the page's helper requires one."""
+    app = AppTest.from_file(str(HARNESS), default_timeout=60)
+    app.run()
+
+    control = _section_control(app)
+    for title in list(control.options):
+        control.set_value(title)
+        app.run()
+        assert not app.exception, f"{title}: {app.exception}"
+        unnamed = [frame for frame in app.dataframe if not frame.proto.alt]
+        assert not unnamed, f"{title}: unnamed table"
+
+
 def test_page_renders_without_a_snapshot(tmp_path, monkeypatch):
     """With no snapshot the page shows empty states, not a live fetch."""
     monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "empty"))

@@ -107,8 +107,14 @@ def universe_symbols(
     return tuple(dict.fromkeys(symbols))
 
 
-def table(frame: pd.DataFrame, formats: Dict[str, str] | None = None) -> None:
-    """Render a dataframe with number columns formatted through ``column_config``."""
+def table(
+    frame: pd.DataFrame, formats: Dict[str, str] | None = None, *, alt: str
+) -> None:
+    """Render a dataframe with number columns formatted through ``column_config``.
+
+    ``alt`` names the table for assistive technology, so every call has to say
+    what its rows are.
+    """
     config = None
     if formats:
         config = {
@@ -116,7 +122,7 @@ def table(frame: pd.DataFrame, formats: Dict[str, str] | None = None) -> None:
             for column, pattern in formats.items()
             if column in frame.columns
         }
-    st.dataframe(frame, hide_index=True, column_config=config)
+    st.dataframe(frame, hide_index=True, column_config=config, alt=alt)
 
 
 def _as_of(frame: pd.DataFrame) -> str:
@@ -247,6 +253,7 @@ def render_options_mismatch(universe: Tuple[str, ...]) -> None:
                 "Deviation": "{:,.1f}",
                 "Deviation %": "{:,.2f}%",
             },
+            alt="Strikes priced away from their expiry's implied forward",
         )
 
     st.caption(
@@ -336,6 +343,7 @@ def render_volume_stocks(universe: Tuple[str, ...]) -> None:
                 "Return %": "{:,.2f}%",
                 "Turnover": "{:,.0f}",
             },
+            alt="Symbols trading above their average volume, with the session's price move",
         )
 
     st.caption(
@@ -399,6 +407,7 @@ def render_option_volume(universe: Tuple[str, ...]) -> None:
                 "Volume": "{:,.0f}",
                 "Buildup": "{:,.2f}",
             },
+            alt="Contracts with the largest change in open interest",
         )
 
     with st.expander("Put-call ratio by expiry"):
@@ -415,6 +424,7 @@ def render_option_volume(universe: Tuple[str, ...]) -> None:
                     "CE Volume": "{:,.0f}",
                     "PE Volume": "{:,.0f}",
                 },
+                alt="Put-call ratio by underlying and expiry",
             )
             labels = [
                 f"{row.Symbol} · {row.Expiry}" for row in ratios.itertuples()
@@ -518,6 +528,7 @@ def render_pairs(universe: Tuple[str, ...]) -> None:
                 "Spread z": "{:,.2f}",
                 "Spread": "{:,.3f}",
             },
+            alt="Same-industry pairs ranked by how stretched their spread is",
         )
 
     st.caption(
@@ -533,6 +544,18 @@ RENDERERS: Dict[str, Callable[[Tuple[str, ...]], None]] = {
     "Unusual volume in stocks": render_volume_stocks,
     "Unusual volume in options": render_option_volume,
 }
+
+
+@st.fragment
+def render_section(section: str, universe: Tuple[str, ...]) -> None:
+    """The selected screen, as a fragment.
+
+    The screens' sliders only move their own chart and table, so rerunning just
+    this block keeps the header and the universe picker still while a window or
+    threshold is dragged.
+    """
+    st.caption(BLURBS[section])
+    RENDERERS[section](universe)
 
 
 def main() -> None:
@@ -562,8 +585,7 @@ def main() -> None:
         label_visibility="collapsed",
     )
     section = section or SECTION_TITLES[0]
-    st.caption(BLURBS[section])
-    RENDERERS[section](universe)
+    render_section(section, universe)
 
 
 if __name__ == "__main__":

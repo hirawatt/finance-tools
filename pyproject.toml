@@ -6,28 +6,28 @@ readme = "README.md"
 requires-python = ">=3.15"
 dependencies = [
   "numpy==2.5.4",
-  "pandas==3.0.6",
+  "pandas==3.1.1",
   "plotly==7.1.0",
-  "streamlit==1.66.0",
+  "streamlit==1.67.0",
   # Kept as it's likely used by pandas for .xlsx files
   "openpyxl==3.1.5",
   # Required by streamlit
-  "pyarrow==26.0.0",
+  "pyarrow==26.0.1",
   # Portfolio analytics: quantstats powers the tearsheet/risk metrics,
   # yfinance supplies the daily price history, scipy underpins quantstats' stats.
   "quantstats==0.0.86",
-  "yfinance==1.7.0",
+  "yfinance==1.8.0",
   "scipy==1.18.1",
   # Object storage for the nightly market-data snapshot (utils/snapshot.py).
   # Any S3-compatible endpoint works: AWS S3, Cloudflare R2, MinIO, Backblaze B2.
-  "boto3==1.43.114",
+  "boto3==1.43.125",
   "pdfplumber>=0.11.10",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest==9.1.1",
-    "reportlab>=5.0.1",
+    "pytest==9.2.0",
+    "reportlab>=5.1.0",
 ]
 
 [tool.uv]

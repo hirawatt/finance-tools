@@ -174,7 +174,7 @@ seaborn==0.13.2
     # via quantstats
 six==1.17.0
     # via python-dateutil
-soupsieve==3.0.3
+soupsieve==4.0
     # via beautifulsoup4
 starlette==1.8.0
     # via streamlit
